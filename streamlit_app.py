@@ -2,6 +2,7 @@ import streamlit as st
 
 # United Airlines logo URL
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
+VERSION = "2.1"
 
 # Function to evaluate Award Accelerator (miles + PQP purchases)
 def evaluate_accelerator(miles, pqp, cost):
@@ -213,3 +214,6 @@ with tab3:
             st.success(result["Verdict"]) 
         else:
             st.error(result["Verdict"])
+
+st.write("DISCLAIMER: This app is developed for informational purpose only. Please use your own judgement.")
+st.write(f"Version "+VERSION)
