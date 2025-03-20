@@ -4,7 +4,7 @@ import streamlit as st
 MILE_VALUE_LOW = 0.012  # United miles valuation low (1.2 cents)
 MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
-VERSION = "2.2"
+VERSION = "2.3"
 
 # Cabin Class Options
 cabin_classes = ["Economy", "Premium Plus", "Business (Polaris)"]
@@ -76,7 +76,8 @@ def evaluate_accelerator(miles, pqp, cost):
         "Miles Worth (High)": format_currency(miles_worth_high),
         "Cost Per Mile": f"{cost_per_mile:.3f} cents" if miles > 0 else "N/A",
         "PQP Cost per Dollar": format_currency(pqp_cost_low) if pqp else None,
-        "Verdict": verdict
+        "Verdict": verdict,
+        "CPM": cost_per_mile * 100 if miles > 0 else 0
     }
 
 # Function to evaluate upgrade options & detect bad deals
@@ -145,7 +146,8 @@ def evaluate_upgrade(miles, cash_cost, full_cash_upgrade, full_fare_cost, travel
         "Savings (Cash-Only Upgrade)": format_currency(savings_cash_upgrade),
         "Best Option": best_option,
         "Verdict": verdict,
-        "Warning": warning_message
+        "Warning": warning_message,
+        "Comfort Factor": comfort_factor
     }
 
 # Function to evaluate Ticket Purchase (Miles vs. Cash vs. Miles + Cash)
@@ -193,7 +195,9 @@ def evaluate_best_option(miles_price, cash_price, miles_plus_cash_miles, miles_p
         "CPM (Miles + Cash)": f"{cpm_miles_plus_cash:.2f} cents" if miles_plus_cash_miles > 0 else "N/A",
         "Best Option": best_option,
         "Verdict": verdict,
-        "Advice": advice
+        "Advice": advice,
+        "CPM_Miles": cpm_miles,
+        "CPM_Mixed": cpm_miles_plus_cash
     }
 
 # Initialize session state if not exists
@@ -236,22 +240,53 @@ with tab1:
         if "Error" in result:
             st.error(result["Error"])
         else:
-            for key, value in result.items():
-                if value and key != "Verdict":
-                    st.metric(key, value)
-                    
-            # Show verdict with appropriate styling
-            if "✅" in result["Verdict"]:
-                st.success(result["Verdict"])
-            elif "❌" in result["Verdict"]:
-                st.error(result["Verdict"])
-            else:
-                st.warning(result["Verdict"])
+            # Stylized Output Section
+            st.markdown("### 🏆 **Award Accelerator Analysis**")
+
+            # Use Columns for better formatting
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("##### 💰 **Value Breakdown**")
+                st.markdown(f"**Miles Worth:** {result['Miles Worth (Low)']} - {result['Miles Worth (High)']}")
+                if miles > 0:
+                    st.markdown(f"**Cost Per Mile:** {result['Cost Per Mile']}")
+                if pqp > 0:
+                    st.markdown(f"**PQP Cost:** {result['PQP Cost per Dollar']}/PQP")
+
+            with col2:
+                st.markdown("##### 📊 **Value Assessment**")
+                # Show verdict with appropriate styling
+                if "✅" in result["Verdict"]:
+                    st.success(result["Verdict"])
+                elif "❌" in result["Verdict"]:
+                    st.error(result["Verdict"])
+                else:
+                    st.warning(result["Verdict"])
+                
+                # Show bonus advice for CPM
+                if miles > 0 and cost > 0:
+                    cpm = result["CPM"]
+                    if cpm < 1.0:
+                        st.success(f"You're paying only {cpm:.3f} cents per mile. This is below the typical valuation of 1.2-1.5 cents each.")
+                    elif cpm < 1.2:
+                        st.info(f"You're paying {cpm:.3f} cents per mile. This is slightly below the typical valuation of 1.2-1.5 cents each.")
+                    else:
+                        st.warning(f"You're paying {cpm:.3f} cents per mile. This is above the typical valuation of 1.2-1.5 cents each.")
             
-            # Show bonus advice
-            if miles > 0 and cost > 0:
-                cpm = (cost / miles) * 100
-                st.info(f"You're paying {cpm:.3f} cents per mile. United miles are typically valued at 1.2-1.5 cents each.")
+            # Additional insights section
+            st.markdown("##### 💡 **Additional Insights**")
+            if pqp > 0:
+                ratio = pqp / cost
+                if ratio > 0.65:
+                    st.success(f"This offer provides excellent PQP earning rate ({ratio:.2f} PQP per dollar).")
+                elif ratio > 0.5:
+                    st.info(f"This offer provides decent PQP earning rate ({ratio:.2f} PQP per dollar).")
+                else:
+                    st.warning(f"This offer provides below-average PQP earning rate ({ratio:.2f} PQP per dollar).")
+            else:
+                if miles > 0 and cost > 0:
+                    st.info("This offer doesn't include PQP, so it only helps with award travel, not elite status progress.")
 
 
 with tab2:
@@ -322,7 +357,7 @@ with tab2:
                     st.error(result["Warning"])
                 
                 # Add flight duration insight
-                comfort_factor = 1 + (0.05 * travel_hours)
+                comfort_factor = result["Comfort Factor"]
                 if travel_hours >= 6:
                     st.info(f"Long flight ({travel_hours}h) increases upgrade value by {(comfort_factor-1)*100:.0f}% in our calculations.")
 
@@ -351,45 +386,72 @@ with tab3:
         miles_plus_cash_cash = st.number_input("Cash for Miles + Cash ($)", min_value=0.0, step=50.0, key="purchase_mixed_cash")
 
     if st.button("Evaluate Best Purchase Option"):
-        result = evaluate_best_option(miles_price, cash_price, miles_plus_cash_miles, miles_plus_cash_cash)
-        
         # Check if we have enough data to make a comparison
         if miles_price == 0 and miles_plus_cash_miles == 0:
             st.warning("Please enter miles required for at least one option.")
         elif cash_price == 0:
             st.warning("Please enter the full cash ticket price for comparison.")
         else:
-            # Display metrics
-            for key, value in result.items():
-                if value and key not in ["Verdict", "Advice"]:
-                    st.metric(key, value)
+            result = evaluate_best_option(miles_price, cash_price, miles_plus_cash_miles, miles_plus_cash_cash)
             
-            # Show verdict
+            # Stylized Output Section
+            st.markdown("### 🎟️ **Ticket Purchase Analysis**")
+
+            # Use Columns for better formatting
+            #col1, col2 = st.columns(2)
+
+            #with col1:
+            st.markdown("##### 💰 **Cost Comparison**")
+            st.markdown(f"**Miles Value:** {result['Miles Cash Value (Low)']} - {result['Miles Cash Value (High)']}")
+            st.markdown(f"**Total Cost (Miles Only):** {result['Total Cost (Miles)']}")
+            if miles_plus_cash_miles > 0 and miles_plus_cash_cash > 0:
+                st.markdown(f"**Total Cost (Miles + Cash):** {result['Total Cost (Miles + Cash)']}")
+            st.markdown(f"**Total Cost (Cash):** {result['Total Cost (Cash)']}")
+
+            #with col2:
+            st.markdown("##### 📊 **Value Assessment**")
+            # Show verdict with appropriate styling
             if "✅" in result["Verdict"]:
                 st.success(result["Verdict"])
             else:
-                st.error(result["Verdict"])
+                st.warning(result["Verdict"])
+            
+            #st.markdown(f"**Best Option:** <span style='font-size:24px; font-weight:bold;'>{result['Best Option']}</span>", unsafe_allow_html=True)
+            
+            # Show CPM for redemption options
+            if miles_price > 0:
+                cpm_miles = result["CPM_Miles"]
+                st.markdown(f"**CPM (Miles Only):** {cpm_miles:.2f} cents per mile")
+            
+            if miles_plus_cash_miles > 0 and miles_plus_cash_cash > 0:
+                cpm_mixed = result["CPM_Mixed"]
+                st.markdown(f"**CPM (Miles + Cash):** {cpm_mixed:.2f} cents per mile")
+            
+            # Additional insights section
+            st.markdown("##### 💡 **Redemption Value Insights**")
             
             # Show advice if available
             if "Advice" in result and result["Advice"]:
                 st.info(result["Advice"])
             
-            # Calculate and show cents per mile
+            # Calculate and show cents per mile assessment
             if miles_price > 0:
-                cpm = (cash_price / miles_price) * 100
+                cpm = result["CPM_Miles"]
                 if cpm > 2.0:
-                    st.success(f"Excellent redemption value! Getting {cpm:.2f} cents per mile (avg. is 1.2-1.5¢)")
+                    st.success(f"Excellent miles redemption value! You're getting {cpm:.2f} cents per mile with the Miles option (avg. is 1.2-1.5¢)")
                 elif cpm > 1.5:
-                    st.info(f"Good redemption value: {cpm:.2f} cents per mile")
+                    st.info(f"Good miles redemption value: {cpm:.2f} cents per mile (above the typical 1.2-1.5¢ range)")
                 elif cpm < 1.0:
-                    st.warning(f"Below average redemption value: {cpm:.2f} cents per mile")
-
-# Add route search feature
-st.sidebar.subheader("Save Your Scenario")
-save_name = st.sidebar.text_input("Scenario Name", "My United Deal")
-if st.sidebar.button("Save Current Values"):
-    st.sidebar.success(f"Saved scenario: {save_name}")
-    # In a real app, would save to session state or database
+                    st.warning(f"Below average miles redemption value: {cpm:.2f} cents per mile (below the typical 1.2-1.5¢ range)")
+            
+            if miles_plus_cash_miles > 0 and miles_plus_cash_cash > 0:
+                cpm_mixed = result["CPM_Mixed"]
+                if cpm_mixed > 2.0:
+                    st.success(f"Excellent value with Miles + Cash option! You're getting {cpm_mixed:.2f} cents per mile (avg. is 1.2-1.5¢)")
+                elif cpm_mixed > 1.5:
+                    st.info(f"Good value with Miles + Cash option: {cpm_mixed:.2f} cents per mile")
+                elif cpm_mixed < 1.0:
+                    st.warning(f"Below average value with Miles + Cash option: {cpm_mixed:.2f} cents per mile")
 
 # Add an expanded disclaimer and about section
 with st.expander("About & Disclaimer"):
