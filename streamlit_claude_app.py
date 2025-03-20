@@ -206,7 +206,7 @@ st.title("United Airlines Deal Evaluator ✈️")
 st.markdown("Analyze **Award Accelerators, Upgrade Offers, and Ticket Purchases** to find the best value.")
 
 # Help toggle
-help_col1, help_col2 = st.columns([1, 1 ])
+help_col1, help_col2 = st.columns([1, 6])
 with help_col1:
     show_help = st.checkbox("Show Help", st.session_state.show_help)
     st.session_state.show_help = show_help
