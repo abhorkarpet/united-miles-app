@@ -4,7 +4,7 @@ import streamlit as st
 MILE_VALUE_LOW = 0.012  # United miles valuation low (1.2 cents)
 MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
-VERSION = "2.3"
+VERSION = "3.0"
 
 # Cabin Class Options
 cabin_classes = ["Economy", "Premium Plus", "Business (Polaris)"]
@@ -80,6 +80,23 @@ def evaluate_accelerator(miles, pqp, cost):
         "CPM": cost_per_mile * 100 if miles > 0 else 0
     }
 
+
+def is_upgrade_not_worth_it(travel_hours, cash_upgrade, full_fare, miles, cash_cost, from_class, to_class):
+    """ Determines if an upgrade is not worth it """
+    if travel_hours < 3 and from_class == "Economy" and to_class == "Premium Plus":
+        return "⚠️ Short flight – upgrade may not be worth it."
+    
+    if cash_upgrade > 0.8 * full_fare:
+        return "⚠️ Upgrade cost is too close to full fare price."
+
+    if (miles > 0 and cash_cost > 0) and (cash_cost + (miles * 0.012) > full_fare) and full_fare > 0:
+        return "⚠️ Miles + Cash upgrade is costing more than a full-fare business class ticket."
+
+    if from_class == "Premium Plus" and to_class == "Business (Polaris)" and travel_hours < 5:
+        return "⚠️ Small difference in comfort for this flight length – not worth upgrading."
+
+    return None  # Upgrade is reasonable
+
 # Function to evaluate upgrade options & detect bad deals
 def evaluate_upgrade(miles, cash_cost, full_cash_upgrade, full_fare_cost, travel_hours, from_class, to_class):
     # Validate inputs
@@ -100,50 +117,61 @@ def evaluate_upgrade(miles, cash_cost, full_cash_upgrade, full_fare_cost, travel
     # Get upgrade multiplier based on cabin classes
     upgrade_multiplier = upgrade_multipliers.get((from_class, to_class), 1.0)
 
-    # Calculate miles value
+    # Handle missing inputs by making best estimates
+    original_full_fare_cost = full_fare_cost
+    if full_fare_cost == 0:
+        full_fare_cost = max(full_cash_upgrade * 1.5, 1000)  # Estimate based on upgrade cost
+
+    if miles == 0 and cash_cost == 0:
+        miles, cash_cost = 0, full_cash_upgrade  # Assume only cash upgrade available
+
+    # Value of miles in cash terms
+# Calculate miles value
     miles_worth_low, miles_worth_high = calculate_miles_value(miles)
-    
-    # Calculate total costs for different options
     total_miles_cash_upgrade_low = cash_cost + miles_worth_low
     total_miles_cash_upgrade_high = cash_cost + miles_worth_high
+
+    # Full Cash Upgrade (No Miles)
     total_cash_upgrade = full_cash_upgrade
-    
-    # Calculate savings (adjusted by comfort factor and upgrade multiplier)
-    savings_low = (full_fare_cost - total_miles_cash_upgrade_high) * comfort_factor * upgrade_multiplier
-    savings_high = (full_fare_cost - total_miles_cash_upgrade_low) * comfort_factor * upgrade_multiplier
+
+    # Apply comfort factor to savings
+    savings_low, savings_high = ((full_fare_cost - total_miles_cash_upgrade_high) * comfort_factor * upgrade_multiplier, 
+                                 (full_fare_cost - total_miles_cash_upgrade_low) * comfort_factor * upgrade_multiplier)
+    if total_cash_upgrade == 0:
+        total_cash_upgrade = full_fare_cost
     savings_cash_upgrade = (full_fare_cost - total_cash_upgrade) * comfort_factor * upgrade_multiplier
-    
-    # Find best option
-    options = {
-        "Miles + Cash": max(0, savings_high),
-        "Cash Upgrade": max(0, savings_cash_upgrade),
-        "Buy Full Fare Ticket": 0  # Default option if no savings
-    }
-    best_option = max(options.items(), key=lambda x: x[1])[0]
-    
-    verdict = f"✅ Best Option: **{best_option}**"
-    
-    # Check for warning conditions
+
+    # Best Upgrade Method Decision
+    if savings_high > savings_cash_upgrade and savings_high > 0:
+        best_option = "Miles + Cash"
+    elif savings_cash_upgrade > 0:
+        best_option = "Cash Upgrade"
+    else:
+        best_option = "Buy Full Fare Ticket"
+
+    verdict = f"✅ **Best Option:** {best_option}"
+
+    # ❌ Detect When the Upgrade is "Not Worth It"
+    #warning_message = is_upgrade_not_worth_it(travel_hours,total_cash_upgrade,full_fare_cost, miles, cash_cost, from_class, to_class)
     warning_message = None
-    
     # Short flight warning
-    if travel_hours < 3 and (from_class, to_class) in [("Economy", "Premium Plus"), ("Premium Plus", "Business (Polaris)")]:
+    if travel_hours < 3 and from_class == "Economy" and to_class == "Premium Plus":
         warning_message = "⚠️ Short flight – upgrade may not be worth it."
     # High upgrade cost warning
-    elif total_cash_upgrade > 0.8 * full_fare_cost and full_fare_cost > 0:
+    elif total_cash_upgrade > 0.8 * full_fare_cost  and original_full_fare_cost > 0:
         warning_message = "⚠️ Upgrade cost is too close to full fare price."
     # Miles + Cash more expensive than full fare
-    elif total_miles_cash_upgrade_high > full_fare_cost and full_fare_cost > 0:
+    elif total_miles_cash_upgrade_high > full_fare_cost  and original_full_fare_cost > 0:
         warning_message = "⚠️ Miles + Cash upgrade is costing more than a full-fare business class ticket."
 
     return {
-        "Miles Worth (Low)": format_currency(miles_worth_low),
-        "Miles Worth (High)": format_currency(miles_worth_high),
-        "Total Upgrade Cost (Miles + Cash)": f"{format_currency(total_miles_cash_upgrade_low)} - {format_currency(total_miles_cash_upgrade_high)}",
-        "Total Upgrade Cost (Cash-Only)": format_currency(total_cash_upgrade),
-        "Full-Fare Business/First Class Price": format_currency(full_fare_cost),
-        "Savings (Miles + Cash Upgrade)": f"{format_currency(savings_low)} - {format_currency(savings_high)}",
-        "Savings (Cash-Only Upgrade)": format_currency(savings_cash_upgrade),
+        "Miles Worth (Low)": f"${miles_worth_low:.2f}",
+        "Miles Worth (High)": f"${miles_worth_high:.2f}",
+        "Total Upgrade Cost (Miles + Cash)": f"${total_miles_cash_upgrade_low:.2f} - ${total_miles_cash_upgrade_high:.2f}" if miles > 0 else "N/A",
+        "Total Upgrade Cost (Cash-Only)": f"${total_cash_upgrade:.2f}",
+        "Full-Fare Business/First Class Price": f"${full_fare_cost:.2f}",
+        "Savings (Miles + Cash Upgrade)": f"${savings_low:.2f} - ${savings_high:.2f}" if miles > 0 else "N/A",
+        "Savings (Cash-Only Upgrade)": f"${savings_cash_upgrade:.2f}",
         "Best Option": best_option,
         "Verdict": verdict,
         "Warning": warning_message,
@@ -307,15 +335,15 @@ with tab2:
     
     with col1:
         from_class = st.selectbox("Current Cabin Class", cabin_classes, key="upgrade_from")
-        miles = st.number_input("Miles Required for Upgrade (Miles + Cash Option)", min_value=0, step=1000, key="upgrade_miles")
+        miles = st.number_input("Miles Required for Upgrade (Miles + Cash Option, leave 0 if unknown)", min_value=0, step=1000, key="upgrade_miles")
         full_cash_upgrade = st.number_input("Cash-Only Upgrade Cost ($)", min_value=0.0, step=50.0, key="upgrade_cash_only")
-    
+
     with col2:
         to_class = st.selectbox("Upgrade To", cabin_classes, index=2, key="upgrade_to")
-        cash_cost = st.number_input("Cash Co-Pay for Miles + Cash Upgrade ($)", min_value=0.0, step=50.0, key="upgrade_copay")
-        full_fare_cost = st.number_input("Full-Fare Business/First Class Cost ($)", min_value=0.0, step=100.0, key="upgrade_full_fare")
+        cash_cost = st.number_input("Cash Cost for Miles + Cash Upgrade ($, leave 0 if unknown)", min_value=0.0, step=50.0)
+        full_fare_cost = st.number_input("Full-Fare Business/First Class Cost ($, leave 0 if unknown)", min_value=0.0, step=100.0)
     
-    travel_hours = st.slider("Flight Duration (in hours)", min_value=1, max_value=20, value=5, key="upgrade_duration")
+    travel_hours = st.slider("Flight Duration (in hours)", min_value=1, max_value=20, value=5, key="upgrade_duration")    
 
     if st.button("Evaluate Upgrade Offer"):
         result = evaluate_upgrade(miles, cash_cost, full_cash_upgrade, full_fare_cost, travel_hours, from_class, to_class)
@@ -331,36 +359,38 @@ with tab2:
             if "Warning" in result and result["Warning"] and "No upgrade selected" in result["Verdict"]:
                 st.warning(result["Warning"])
             else:
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    st.markdown("##### 💰 **Cost Breakdown**")
-                    st.markdown(f"**Miles Worth:** {result['Miles Worth (Low)']} - {result['Miles Worth (High)']}")
-                    st.markdown(f"**Miles + Cash Upgrade Cost:** {result['Total Upgrade Cost (Miles + Cash)']}")
-                    st.markdown(f"**Cash-Only Upgrade Cost:** {result['Total Upgrade Cost (Cash-Only)']}")
-                    st.markdown(f"**Full-Fare Business Class:** {result['Full-Fare Business/First Class Price']}")
-
-                with col2:
-                    st.markdown("##### 💵 **Savings & Decision**")
-                    st.markdown(f"**Savings (Miles + Cash Upgrade):** {result['Savings (Miles + Cash Upgrade)']}")
-                    st.markdown(f"**Savings (Cash-Only Upgrade):** {result['Savings (Cash-Only Upgrade)']}")
-                    st.markdown(f"**Best Option:** <span style='font-size:24px; font-weight:bold;'>{result['Best Option']}</span>", unsafe_allow_html=True)
-                
-                # Show verdict with appropriate styling
+                # **Accentuation of Verdict**
+                st.markdown("### 🔎 **Final Verdict**")
                 if "✅" in result["Verdict"]:
                     st.success(result["Verdict"])
                 else:
                     st.warning(result["Verdict"])
 
-                # Highlight Warnings in Red
-                if "Warning" in result and result["Warning"]:
-                    st.error(result["Warning"])
+                #col1, col2 = st.columns(2)
+
+                #with col1:
+                st.markdown("##### 💰 **Cost Breakdown**")
+                st.markdown(f"**Miles Worth:** {result['Miles Worth (Low)']} - {result['Miles Worth (High)']}", unsafe_allow_html=True)
+                st.markdown(f"**Miles + Cash Upgrade Cost:** {result['Total Upgrade Cost (Miles + Cash)']}", unsafe_allow_html=True)
+                if full_cash_upgrade != 0:
+                    st.markdown(f"**Cash-Only Upgrade Cost:** {result['Total Upgrade Cost (Cash-Only)']}", unsafe_allow_html=True)
+                if full_fare_cost != 0:
+                    st.markdown(f"**Full-Fare Business Class:** {result['Full-Fare Business/First Class Price']}", unsafe_allow_html=True)
+
+                #with col2:
+                #st.markdown("##### 💵 **Savings & Decision**")
+                #st.markdown(f"**Savings (Miles + Cash Upgrade):** {result['Savings (Miles + Cash Upgrade)']}", unsafe_allow_html=True)
+                #if full_cash_upgrade != 0:
+                #    st.markdown(f"**Savings (Cash-Only Upgrade):** {result['Savings (Cash-Only Upgrade)']}", unsafe_allow_html=True)
+                #st.markdown(f"**Best Option:** <span style='font-size:24px; font-weight:bold;'>{result['Best Option']}</span>", unsafe_allow_html=True)
                 
+                # **Highlight Warnings in Red**
+                if result["Warning"]:
+                    st.error(result["Warning"])
                 # Add flight duration insight
                 comfort_factor = result["Comfort Factor"]
                 if travel_hours >= 6:
                     st.info(f"Long flight ({travel_hours}h) increases upgrade value by {(comfort_factor-1)*100:.0f}% in our calculations.")
-
 
 with tab3:
     st.subheader("Compare Ticket Purchase Options")
