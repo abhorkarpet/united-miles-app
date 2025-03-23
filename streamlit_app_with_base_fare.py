@@ -1,11 +1,22 @@
+
+def evaluate_relative_upgrade_cost(base_fare, upgrade_cost):
+    if base_fare == 0:
+        return None
+    if upgrade_cost < 0.5 * base_fare:
+        return "✅ Upgrade is reasonably priced relative to your original fare."
+    elif upgrade_cost < 0.8 * base_fare:
+        return "🟡 Upgrade is borderline—consider only for longer flights or big comfort boost."
+    else:
+        return "❌ Upgrade is expensive compared to your base fare."
+
 import streamlit as st
 
 # Constants for easier maintenance
 MILE_VALUE_LOW = 0.012  # United miles valuation low (1.2 cents)
 MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
-VERSION = "4.0"
-UPGRADE_COMFORT_HOURS = 6
+VERSION = "3.1"
+UPGRADE_COMFORT_HOURS = 7
 
 # Cabin Class Options
 cabin_classes = ["Economy", "Premium Plus", "Business (Polaris)"]
@@ -82,12 +93,12 @@ def evaluate_accelerator(miles, pqp, cost):
     }
 
 
-def is_upgrade_not_worth_it(travel_hours, cash_upgrade, full_fare, miles, cash_cost, from_class, to_class, original_full_fare):
+def is_upgrade_not_worth_it(travel_hours, cash_upgrade, full_fare, miles, cash_cost, from_class, to_class):
     """ Determines if an upgrade is not worth it """
     if travel_hours < UPGRADE_COMFORT_HOURS and from_class == "Economy" and to_class == "Premium Plus":
         return "⚠️ Short flight – upgrade may not be worth it."
     
-    if cash_upgrade > 0.8 * full_fare and original_full_fare > 0:
+    if cash_upgrade > 0.8 * full_fare:
         return "⚠️ Upgrade cost is too close to full fare price."
 
     if (miles > 0 and cash_cost > 0) and (cash_cost + (miles * 0.012) > full_fare) and full_fare > 0:
@@ -98,9 +109,8 @@ def is_upgrade_not_worth_it(travel_hours, cash_upgrade, full_fare, miles, cash_c
 
     return None  # Upgrade is reasonable
 
+
 def evaluate_relative_upgrade_cost(base_fare, upgrade_cost):
-    if base_fare == 0:
-        return None
     if upgrade_cost < 0.5 * base_fare:
         return "✅ Upgrade is reasonably priced relative to your original fare."
     elif upgrade_cost < 0.8 * base_fare:
@@ -163,7 +173,7 @@ def evaluate_upgrade(miles, cash_cost, full_cash_upgrade, full_fare_cost, travel
     verdict = f"✅ **Best Option:** {best_option}"
 
     # ❌ Detect When the Upgrade is "Not Worth It"
-    warning_message = is_upgrade_not_worth_it(travel_hours,total_cash_upgrade,full_fare_cost, miles, cash_cost, from_class, to_class, original_full_fare_cost)
+    warning_message = is_upgrade_not_worth_it(travel_hours,total_cash_upgrade,full_fare_cost, miles, cash_cost, from_class, to_class)
 
     return {
         "Miles Worth (Low)": f"${miles_worth_low:.2f}",
@@ -245,10 +255,80 @@ with help_col1:
     st.session_state.show_help = show_help
 
 # Create tabs
-tab1, tab2, tab3 = st.tabs(["💺 Upgrade Offer", "🎟️ Ticket Purchase", "🏆 Award Accelerator"])
-
+tab1, tab2, tab3 = st.tabs(["🏆 Award Accelerator", "💺 Upgrade Offer", "🎟️ Ticket Purchase"])
 
 with tab1:
+    st.subheader("Evaluate Award Accelerator Deals")
+    
+    if show_help:
+        st.info("""
+        **Award Accelerator** allows you to purchase additional miles, sometimes with PQP (Premier Qualifying Points).
+        - **Miles Offered**: The number of bonus miles you'll receive
+        - **PQP Offered**: Premier Qualifying Points (helps earn elite status)
+        - **Total Cost**: What United is charging for this offer
+        """)
+    
+    miles = st.number_input("Miles Offered", min_value=0, step=1000, key="accelerator_miles")
+    pqp = st.number_input("PQP Offered (Enter 0 if not included)", min_value=0, step=100, key="accelerator_pqp")
+    cost = st.number_input("Total Cost ($)", min_value=0.0, step=50.0, key="accelerator_cost")
+
+    if st.button("Evaluate Award Accelerator"):
+        result = evaluate_accelerator(miles, pqp, cost)
+        
+        # Check for errors
+        if "Error" in result:
+            st.error(result["Error"])
+        else:
+            # Stylized Output Section
+            st.markdown("### 🏆 **Award Accelerator Analysis**")
+
+            # Use Columns for better formatting
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("##### 💰 **Value Breakdown**")
+                st.markdown(f"**Miles Worth:** {result['Miles Worth (Low)']} - {result['Miles Worth (High)']}")
+                if miles > 0:
+                    st.markdown(f"**Cost Per Mile:** {result['Cost Per Mile']}")
+                if pqp > 0:
+                    st.markdown(f"**PQP Cost:** {result['PQP Cost per Dollar']}/PQP")
+
+            with col2:
+                st.markdown("##### 📊 **Value Assessment**")
+                # Show verdict with appropriate styling
+                if "✅" in result["Verdict"]:
+                    st.success(result["Verdict"])
+                elif "❌" in result["Verdict"]:
+                    st.error(result["Verdict"])
+                else:
+                    st.warning(result["Verdict"])
+                
+                # Show bonus advice for CPM
+                if miles > 0 and cost > 0:
+                    cpm = result["CPM"]
+                    if cpm < 1.0:
+                        st.success(f"You're paying only {cpm:.3f} cents per mile. This is below the typical valuation of 1.2-1.5 cents each.")
+                    elif cpm < 1.2:
+                        st.info(f"You're paying {cpm:.3f} cents per mile. This is slightly below the typical valuation of 1.2-1.5 cents each.")
+                    else:
+                        st.warning(f"You're paying {cpm:.3f} cents per mile. This is above the typical valuation of 1.2-1.5 cents each.")
+            
+            # Additional insights section
+            st.markdown("##### 💡 **Additional Insights**")
+            if pqp > 0:
+                ratio = pqp / cost
+                if ratio > 0.65:
+                    st.success(f"This offer provides excellent PQP earning rate ({ratio:.2f} PQP per dollar).")
+                elif ratio > 0.5:
+                    st.info(f"This offer provides decent PQP earning rate ({ratio:.2f} PQP per dollar).")
+                else:
+                    st.warning(f"This offer provides below-average PQP earning rate ({ratio:.2f} PQP per dollar).")
+            else:
+                if miles > 0 and cost > 0:
+                    st.info("This offer doesn't include PQP, so it only helps with award travel, not elite status progress.")
+
+
+with tab2:
     st.subheader("💺 Evaluate Your Upgrade Offer")
     
     if show_help:
@@ -273,13 +353,8 @@ with tab1:
         to_class = st.selectbox("Upgrade To", cabin_classes, index=2, key="upgrade_to")
         cash_cost = st.number_input("Cash Cost for Miles + Cash Upgrade ($, leave 0 if unknown)", min_value=0.0, step=50.0)
         full_fare_cost = st.number_input("Full-Fare Business/First Class Cost ($, leave 0 if unknown)", min_value=0.0, step=100.0)
-    base_fare = st.number_input("Base Fare You Paid for Economy/Premium ($, leave 0 if unknown)", min_value=0.0, step=50.0)
-    base_fare_miles = st.number_input("Base Miles You Paid for Economy/Premium (leave 0 if unknown)", min_value=0.0, step=50.0)
-
-    if base_fare_miles > 0:
-        base_fare_miles_value_low, base_fare_miles_value_high = calculate_miles_value(base_fare_miles)
-        base_fare = base_fare + base_fare_miles_value_high
-
+    base_fare = st.number_input("Base Fare You Paid for Economy/Premium ($)", min_value=0.0, step=50.0)
+    
     travel_hours = st.slider("Flight Duration (in hours)", min_value=1, max_value=20, value=5, key="upgrade_duration")    
 
     if st.button("Evaluate Upgrade Offer"):
@@ -313,27 +388,35 @@ with tab1:
                     st.markdown(f"**Cash-Only Upgrade Cost:** {result['Total Upgrade Cost (Cash-Only)']}", unsafe_allow_html=True)
                 if full_fare_cost != 0:
                     st.markdown(f"**Full-Fare Business Class:** {result['Full-Fare Business/First Class Price']}", unsafe_allow_html=True)
+
+                #with col2:
+                #st.markdown("##### 💵 **Savings & Decision**")
+                #st.markdown(f"**Savings (Miles + Cash Upgrade):** {result['Savings (Miles + Cash Upgrade)']}", unsafe_allow_html=True)
+                #if full_cash_upgrade != 0:
+                #    st.markdown(f"**Savings (Cash-Only Upgrade):** {result['Savings (Cash-Only Upgrade)']}", unsafe_allow_html=True)
+                #st.markdown(f"**Best Option:** <span style='font-size:24px; font-weight:bold;'>{result['Best Option']}</span>", unsafe_allow_html=True)
                 
-                # Evaluate relative upgrade cost (based on cash-only upgrade)
-                relative_upgrade_msg = evaluate_relative_upgrade_cost(base_fare, full_cash_upgrade)
-                if relative_upgrade_msg:
-                    st.markdown("### 💸 **Upgrade Cost vs. Base Fare**")
-                    if "✅" in relative_upgrade_msg:
-                        st.success(relative_upgrade_msg)
-                    elif "❌" in relative_upgrade_msg:
-                        st.error(relative_upgrade_msg)
-                    else:
-                        st.warning(relative_upgrade_msg)
+                
+    # Evaluate relative upgrade cost (based on cash-only upgrade)
+    relative_upgrade_msg = evaluate_relative_upgrade_cost(base_fare, full_cash_upgrade)
+    if relative_upgrade_msg:
+        st.markdown("### 💸 **Upgrade Cost vs. Base Fare**")
+        if "✅" in relative_upgrade_msg:
+            st.success(relative_upgrade_msg)
+        elif "❌" in relative_upgrade_msg:
+            st.error(relative_upgrade_msg)
+        else:
+            st.warning(relative_upgrade_msg)
 
-                # **Highlight Warnings in Red**
-                if result["Warning"]:
-                    st.error(result["Warning"])
-                # Add flight duration insight
-                comfort_factor = result["Comfort Factor"]
-                if travel_hours >= UPGRADE_COMFORT_HOURS:
-                    st.info(f"Long flight ({travel_hours}h) increases upgrade value by {(comfort_factor-1)*100:.0f}% in our calculations.")
+    # **Highlight Warnings in Red**
+    if result["Warning"]:
+        st.error(result["Warning"])
+    # Add flight duration insight
+    comfort_factor = result["Comfort Factor"]
+    if travel_hours >= 6:
+        st.info(f"Long flight ({travel_hours}h) increases upgrade value by {(comfort_factor-1)*100:.0f}% in our calculations.")
 
-with tab2:
+with tab3:
     st.subheader("Compare Ticket Purchase Options")
     
     if show_help:
@@ -423,76 +506,6 @@ with tab2:
                     st.info(f"Good value with Miles + Cash option: {cpm_mixed:.2f} cents per mile")
                 elif cpm_mixed < 1.0:
                     st.warning(f"Below average value with Miles + Cash option: {cpm_mixed:.2f} cents per mile")
-
-with tab3:
-    st.subheader("Evaluate Award Accelerator Deals")
-    
-    if show_help:
-        st.info("""
-        **Award Accelerator** allows you to purchase additional miles, sometimes with PQP (Premier Qualifying Points).
-        - **Miles Offered**: The number of bonus miles you'll receive
-        - **PQP Offered**: Premier Qualifying Points (helps earn elite status)
-        - **Total Cost**: What United is charging for this offer
-        """)
-    
-    miles = st.number_input("Miles Offered", min_value=0, step=1000, key="accelerator_miles")
-    pqp = st.number_input("PQP Offered (Enter 0 if not included)", min_value=0, step=100, key="accelerator_pqp")
-    cost = st.number_input("Total Cost ($)", min_value=0.0, step=50.0, key="accelerator_cost")
-
-    if st.button("Evaluate Award Accelerator"):
-        result = evaluate_accelerator(miles, pqp, cost)
-        
-        # Check for errors
-        if "Error" in result:
-            st.error(result["Error"])
-        else:
-            # Stylized Output Section
-            st.markdown("### 🏆 **Award Accelerator Analysis**")
-
-            # Use Columns for better formatting
-            col1, col2 = st.columns(2)
-
-            with col1:
-                st.markdown("##### 💰 **Value Breakdown**")
-                st.markdown(f"**Miles Worth:** {result['Miles Worth (Low)']} - {result['Miles Worth (High)']}")
-                if miles > 0:
-                    st.markdown(f"**Cost Per Mile:** {result['Cost Per Mile']}")
-                if pqp > 0:
-                    st.markdown(f"**PQP Cost:** {result['PQP Cost per Dollar']}/PQP")
-
-            with col2:
-                st.markdown("##### 📊 **Value Assessment**")
-                # Show verdict with appropriate styling
-                if "✅" in result["Verdict"]:
-                    st.success(result["Verdict"])
-                elif "❌" in result["Verdict"]:
-                    st.error(result["Verdict"])
-                else:
-                    st.warning(result["Verdict"])
-                
-                # Show bonus advice for CPM
-                if miles > 0 and cost > 0:
-                    cpm = result["CPM"]
-                    if cpm < 1.0:
-                        st.success(f"You're paying only {cpm:.3f} cents per mile. This is below the typical valuation of 1.2-1.5 cents each.")
-                    elif cpm < 1.2:
-                        st.info(f"You're paying {cpm:.3f} cents per mile. This is slightly below the typical valuation of 1.2-1.5 cents each.")
-                    else:
-                        st.warning(f"You're paying {cpm:.3f} cents per mile. This is above the typical valuation of 1.2-1.5 cents each.")
-            
-            # Additional insights section
-            st.markdown("##### 💡 **Additional Insights**")
-            if pqp > 0:
-                ratio = pqp / cost
-                if ratio > 0.65:
-                    st.success(f"This offer provides excellent PQP earning rate ({ratio:.2f} PQP per dollar).")
-                elif ratio > 0.5:
-                    st.info(f"This offer provides decent PQP earning rate ({ratio:.2f} PQP per dollar).")
-                else:
-                    st.warning(f"This offer provides below-average PQP earning rate ({ratio:.2f} PQP per dollar).")
-            else:
-                if miles > 0 and cost > 0:
-                    st.info("This offer doesn't include PQP, so it only helps with award travel, not elite status progress.")
 
 # Add an expanded disclaimer and about section
 with st.expander("About & Disclaimer"):
