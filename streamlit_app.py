@@ -4,7 +4,7 @@ import streamlit as st
 MILE_VALUE_LOW = 0.012  # United miles valuation low (1.2 cents)
 MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
-VERSION = "5.0"
+VERSION = "5.1"
 UPGRADE_COMFORT_HOURS = 6
 
 # Cabin Class Options
@@ -267,7 +267,7 @@ if 'show_help' not in st.session_state:
 # Streamlit UI with Tabs
 st.image(UA_LOGO_URL, width=250)  # Display United Airlines Logo
 st.title("United Airlines Deal Evaluator ✈️")
-st.markdown("Analyze **Award Accelerators, Upgrade Offers, and Ticket Purchases** to find the best value.")
+st.markdown("Analyze **Award Accelerators, Upgrade Offers, Ticket Purchases, and Buy Miles Offer** to find the best value.")
 
 # Help toggle
 help_col1, help_col2 = st.columns([1, 1 ])
