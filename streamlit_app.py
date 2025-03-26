@@ -11,7 +11,7 @@ st.set_page_config(
 MILE_VALUE_LOW = 0.012  # United miles valuation low (1.2 cents)
 MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
-VERSION = "5.3"
+VERSION = "5.4"
 UPGRADE_COMFORT_HOURS = 6
 
 # Cabin Class Options
@@ -597,9 +597,9 @@ with tab4:
                 if cpm < 1.0:
                     st.success(f"Excellent miles redemption value! You're getting {cpm:.2f} cents per mile with the Miles option (avg. is 1.2-1.5¢)")
                 elif cpm < 1.5:
-                    st.info(f"Good miles redemption value: {cpm:.2f} cents per mile (above the typical 1.2-1.5¢ range)")
+                    st.info(f"Good miles redemption value: {cpm:.2f} cents per mile (below the typical 1.2-1.5¢ range)")
                 elif cpm > 1.5:
-                    st.warning(f"Below average miles redemption value: {cpm:.2f} cents per mile (below the typical 1.2-1.5¢ range)")
+                    st.warning(f"Below average miles redemption value: {cpm:.2f} cents per mile (above the typical 1.2-1.5¢ range)")
 
 # Add an expanded disclaimer and about section
 with st.expander("About & Disclaimer"):
