@@ -264,6 +264,13 @@ def evaluate_miles_purchase(miles_price, cash_price):
 if 'show_help' not in st.session_state:
     st.session_state.show_help = False
 
+st.set_page_config(
+    page_title="United Upgrade Evaluator",     # Title shown on browser tab
+    page_icon="✈️",                             # Favicon/icon
+    layout="centered",                          # Optional: or "wide"
+    initial_sidebar_state="auto"                # Optional
+)
+
 # Streamlit UI with Tabs
 st.image(UA_LOGO_URL, width=250)  # Display United Airlines Logo
 st.title("United Airlines Deal Evaluator ✈️")
