@@ -4,7 +4,7 @@ import streamlit as st
 MILE_VALUE_LOW = 0.012  # United miles valuation low (1.2 cents)
 MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
-VERSION = "5.1"
+VERSION = "5.2"
 UPGRADE_COMFORT_HOURS = 6
 
 # Cabin Class Options
@@ -555,15 +555,15 @@ with tab4:
             st.markdown("### 🎟️ **Miles Purchase Analysis**")
 
             # Use Columns for better formatting
-            #col1, col2 = st.columns(2)
+            col1, col2 = st.columns(2)
 
-            #with col1:
-            st.markdown("##### 💰 **Cost Comparison**")
-            st.markdown(f"**Miles Value:** {result['Miles Cash Value (Low)']} - {result['Miles Cash Value (High)']}")
-            st.markdown(f"**Total Cost (Cash):** {result['Total Cost (Cash)']}")
+            with col1:
+                st.markdown("##### 💰 **Cost Comparison**")
+                st.markdown(f"**Miles Value:** {result['Miles Cash Value (Low)']} - {result['Miles Cash Value (High)']}")
+                st.markdown(f"**Total Cost (Cash):** {result['Total Cost (Cash)']}")
 
-            #with col2:
-            st.markdown("##### 📊 **Value Assessment**")
+            with col2:
+                st.markdown("##### 📊 **Value Assessment**")
             # Show verdict with appropriate styling
             # if "✅" in result["Verdict"]:
             #     st.success(result["Verdict"])
@@ -572,10 +572,10 @@ with tab4:
             
             #st.markdown(f"**Best Option:** <span style='font-size:24px; font-weight:bold;'>{result['Best Option']}</span>", unsafe_allow_html=True)
             
-            # Show CPM for redemption options
-            if miles_price > 0:
-                cpm_miles = result["CPM_Miles"]
-                st.markdown(f"**CPM (Miles Only):** {cpm_miles:.2f} cents per mile")
+                # Show CPM for redemption options
+                if miles_price > 0:
+                    cpm_miles = result["CPM_Miles"]
+                    st.markdown(f"**CPM (Miles Only):** {cpm_miles:.2f} cents per mile")
             
             # Additional insights section
             st.markdown("##### 💡 **Redemption Value Insights**")
