@@ -4,7 +4,7 @@ import streamlit as st
 MILE_VALUE_LOW = 0.012  # United miles valuation low (1.2 cents)
 MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
-VERSION = "4.0"
+VERSION = "5.0"
 UPGRADE_COMFORT_HOURS = 6
 
 # Cabin Class Options
@@ -229,6 +229,37 @@ def evaluate_best_option(miles_price, cash_price, miles_plus_cash_miles, miles_p
         "CPM_Mixed": cpm_miles_plus_cash
     }
 
+# Function to evaluate Ticket Purchase (Miles vs. Cash vs. Miles + Cash)
+def evaluate_miles_purchase(miles_price, cash_price):
+    # Calculate miles values
+    miles_cash_value_low, miles_cash_value_high = calculate_miles_value(miles_price)
+    
+    # Calculate total costs for different options
+    total_cost_miles_low = miles_cash_value_low
+    total_cost_miles_high = miles_cash_value_high
+        
+    # Determine CPM (cents per mile) for award redemptions
+    cpm_miles = (cash_price / miles_price) * 100 if miles_price > 0 else 0
+        
+    #verdict = f"✅ Best Option: **{best_option}**"
+    
+    # Add advice based on CPM
+    advice = None
+    if cpm_miles < 1.2:
+        advice = "🎯 Great redemption value! Above average cents-per-mile."
+    
+    return {
+        "Miles Cash Value (Low)": format_currency(miles_cash_value_low),
+        "Miles Cash Value (High)": format_currency(miles_cash_value_high),
+        "Total Cost (Miles)": f"{format_currency(total_cost_miles_low)} - {format_currency(total_cost_miles_high)}",
+        "Total Cost (Cash)": format_currency(cash_price),
+        "CPM (Miles Option)": f"{cpm_miles:.2f} cents" if miles_price > 0 else "N/A",
+     #   "Verdict": verdict,
+        "Advice": advice,
+        "CPM_Miles": cpm_miles,
+
+    }
+
 # Initialize session state if not exists
 if 'show_help' not in st.session_state:
     st.session_state.show_help = False
@@ -245,7 +276,7 @@ with help_col1:
     st.session_state.show_help = show_help
 
 # Create tabs
-tab1, tab2, tab3 = st.tabs(["💺 Upgrade Offer", "🎟️ Ticket Purchase", "🏆 Award Accelerator"])
+tab1, tab2, tab3, tab4 = st.tabs(["💺 Upgrade Offer", "🎟️ Ticket Purchase", "🏆 Award Accelerator", "💵 Buy Miles"])
 
 
 with tab1:
@@ -494,6 +525,75 @@ with tab3:
                 if miles > 0 and cost > 0:
                     st.info("This offer doesn't include PQP, so it only helps with award travel, not elite status progress.")
 
+with tab4:
+    st.subheader("Miles Purchase Deal")
+    
+    if show_help:
+        st.info("""
+        This tab helps you decide whether **Miles Offer** is worth it.
+        """)
+    
+    col1, col2 = st.columns(2)
+
+    with col1:
+        cash_price = st.number_input("Purchase Price ($)", min_value=0.0, step=50.0, key="purchase_price")
+
+    with col2:
+        miles_price = st.number_input("Miles", min_value=0, step=1000, key="purchase_miles_offer")
+        bonus_miles = st.number_input("Bonus Miles (if any)", min_value=0, step=1000, key="purchase_miles_bonus_offer")
+        
+    if st.button("Evaluate The offer"):
+        # Check if we have enough data to make a comparison
+        if miles_price == 0:
+            st.warning("Please enter miles.")
+        elif cash_price == 0:
+            st.warning("Please enter the purchase price.")
+        else:
+            result = evaluate_miles_purchase(miles_price + bonus_miles, cash_price)
+            
+            # Stylized Output Section
+            st.markdown("### 🎟️ **Miles Purchase Analysis**")
+
+            # Use Columns for better formatting
+            #col1, col2 = st.columns(2)
+
+            #with col1:
+            st.markdown("##### 💰 **Cost Comparison**")
+            st.markdown(f"**Miles Value:** {result['Miles Cash Value (Low)']} - {result['Miles Cash Value (High)']}")
+            st.markdown(f"**Total Cost (Cash):** {result['Total Cost (Cash)']}")
+
+            #with col2:
+            st.markdown("##### 📊 **Value Assessment**")
+            # Show verdict with appropriate styling
+            # if "✅" in result["Verdict"]:
+            #     st.success(result["Verdict"])
+            # else:
+            #     st.warning(result["Verdict"])
+            
+            #st.markdown(f"**Best Option:** <span style='font-size:24px; font-weight:bold;'>{result['Best Option']}</span>", unsafe_allow_html=True)
+            
+            # Show CPM for redemption options
+            if miles_price > 0:
+                cpm_miles = result["CPM_Miles"]
+                st.markdown(f"**CPM (Miles Only):** {cpm_miles:.2f} cents per mile")
+            
+            # Additional insights section
+            st.markdown("##### 💡 **Redemption Value Insights**")
+            
+            # Show advice if available
+            if "Advice" in result and result["Advice"]:
+                st.info(result["Advice"])
+            
+            # Calculate and show cents per mile assessment
+            if miles_price > 0:
+                cpm = result["CPM_Miles"]
+                if cpm < 1.0:
+                    st.success(f"Excellent miles redemption value! You're getting {cpm:.2f} cents per mile with the Miles option (avg. is 1.2-1.5¢)")
+                elif cpm < 1.5:
+                    st.info(f"Good miles redemption value: {cpm:.2f} cents per mile (above the typical 1.2-1.5¢ range)")
+                elif cpm > 1.5:
+                    st.warning(f"Below average miles redemption value: {cpm:.2f} cents per mile (below the typical 1.2-1.5¢ range)")
+
 # Add an expanded disclaimer and about section
 with st.expander("About & Disclaimer"):
     st.write("This app helps United Airlines travelers evaluate different deals and options to maximize value.")
@@ -506,7 +606,7 @@ with st.expander("About & Disclaimer"):
     - Individual valuations may vary based on your redemption patterns
     - Premium cabin international redemptions often yield higher value
     
-    ### Premier Status Considerations
+    ### Premier Status Considerations (where applicable)
     - Higher status levels may access better upgrade availability
     - PQP requirements vary by status level
     """)
