@@ -1,10 +1,17 @@
 import streamlit as st
 
+st.set_page_config(
+    page_title="United Upgrade Evaluator",     # Title shown on browser tab
+    page_icon="✈️",                             # Favicon/icon
+    layout="centered",                          # Optional: or "wide"
+    initial_sidebar_state="auto"                # Optional
+)
+
 # Constants for easier maintenance
 MILE_VALUE_LOW = 0.012  # United miles valuation low (1.2 cents)
 MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
-VERSION = "5.2"
+VERSION = "5.3"
 UPGRADE_COMFORT_HOURS = 6
 
 # Cabin Class Options
@@ -263,13 +270,6 @@ def evaluate_miles_purchase(miles_price, cash_price):
 # Initialize session state if not exists
 if 'show_help' not in st.session_state:
     st.session_state.show_help = False
-
-st.set_page_config(
-    page_title="United Upgrade Evaluator",     # Title shown on browser tab
-    page_icon="✈️",                             # Favicon/icon
-    layout="centered",                          # Optional: or "wide"
-    initial_sidebar_state="auto"                # Optional
-)
 
 # Streamlit UI with Tabs
 st.image(UA_LOGO_URL, width=250)  # Display United Airlines Logo
