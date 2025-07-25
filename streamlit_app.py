@@ -11,7 +11,7 @@ st.set_page_config(
 MILE_VALUE_LOW = 0.012  # United miles valuation low (1.2 cents)
 MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
-VERSION = "5.4"
+VERSION = "5.5"
 UPGRADE_COMFORT_HOURS = 6
 
 # Cabin Class Options
@@ -283,95 +283,9 @@ with help_col1:
     st.session_state.show_help = show_help
 
 # Create tabs
-tab1, tab2, tab3, tab4 = st.tabs(["💺 Upgrade Offer", "🎟️ Ticket Purchase", "🏆 Award Accelerator", "💵 Buy Miles"])
-
+tab1, tab2, tab3, tab4 = st.tabs(["🎟️ Ticket Purchase", "💺 Upgrade Offer", "🏆 Award Accelerator", "💵 Buy Miles"])
 
 with tab1:
-    st.subheader("💺 Evaluate Your Upgrade Offer")
-    
-    if show_help:
-        st.info("""
-        This evaluates different upgrade options available on United flights.
-        - **Miles + Cash Upgrade**: Using miles plus a cash co-pay
-        - **Cash-Only Upgrade**: Paying a fee to upgrade without using miles
-        - **Full-Fare Business/First**: Buying the higher cabin outright
-        
-        The tool calculates which option offers the best value based on your inputs.
-        """)
-
-    # User Inputs
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        from_class = st.selectbox("Current Cabin Class", cabin_classes, key="upgrade_from")
-        miles = st.number_input("Miles for Upgrade (Miles + Cash Option, leave 0 if unknown)", min_value=0, step=1000, key="upgrade_miles")
-        full_cash_upgrade = st.number_input("Cash-Only Upgrade Cost ($)", min_value=0.0, step=50.0, key="upgrade_cash_only")
-
-    with col2:
-        to_class = st.selectbox("Upgrade To", cabin_classes, index=2, key="upgrade_to")
-        cash_cost = st.number_input("Cash Cost for Miles + Cash Upgrade ($, leave 0 if unknown)", min_value=0.0, step=50.0)
-        full_fare_cost = st.number_input("Full-Fare Business/First Class Cost ($, leave 0 if unknown)", min_value=0.0, step=100.0)
-    base_fare = st.number_input("Base Fare You Paid for Economy/Premium ($, leave 0 if unknown)", min_value=0.0, step=50.0)
-    base_fare_miles = st.number_input("Base Miles You Paid for Economy/Premium (leave 0 if unknown)", min_value=0.0, step=50.0)
-
-    if base_fare_miles > 0:
-        base_fare_miles_value_low, base_fare_miles_value_high = calculate_miles_value(base_fare_miles)
-        base_fare = base_fare + base_fare_miles_value_high
-
-    travel_hours = st.slider("Flight Duration (in hours)", min_value=1, max_value=20, value=5, key="upgrade_duration")    
-
-    if st.button("Evaluate Upgrade Offer"):
-        result = evaluate_upgrade(miles, cash_cost, full_cash_upgrade, full_fare_cost, travel_hours, from_class, to_class)
-        
-        # Check for errors
-        if "Error" in result:
-            st.error(result["Error"])
-        else:
-            # Stylized Output Section
-            st.markdown("### ✈️ **Upgrade Analysis**")
-
-            # Use Columns for better formatting
-            if "Warning" in result and result["Warning"] and "No upgrade selected" in result["Verdict"]:
-                st.warning(result["Warning"])
-            else:
-                # **Accentuation of Verdict**
-                st.markdown("### 🔎 **Final Verdict**")
-                if "✅" in result["Verdict"]:
-                    st.success(result["Verdict"])
-                else:
-                    st.warning(result["Verdict"])
-
-                #col1, col2 = st.columns(2)
-
-                #with col1:
-                st.markdown("##### 💰 **Cost Breakdown**")
-                st.markdown(f"**Miles Worth:** {result['Miles Worth (Low)']} - {result['Miles Worth (High)']}", unsafe_allow_html=True)
-                st.markdown(f"**Miles + Cash Upgrade Cost:** {result['Total Upgrade Cost (Miles + Cash)']}", unsafe_allow_html=True)
-                if full_cash_upgrade != 0:
-                    st.markdown(f"**Cash-Only Upgrade Cost:** {result['Total Upgrade Cost (Cash-Only)']}", unsafe_allow_html=True)
-                if full_fare_cost != 0:
-                    st.markdown(f"**Full-Fare Business Class:** {result['Full-Fare Business/First Class Price']}", unsafe_allow_html=True)
-                
-                # Evaluate relative upgrade cost (based on cash-only upgrade)
-                relative_upgrade_msg = evaluate_relative_upgrade_cost(base_fare, full_cash_upgrade)
-                if relative_upgrade_msg:
-                    st.markdown("### 💸 **Upgrade Cost vs. Base Fare**")
-                    if "✅" in relative_upgrade_msg:
-                        st.success(relative_upgrade_msg)
-                    elif "❌" in relative_upgrade_msg:
-                        st.error(relative_upgrade_msg)
-                    else:
-                        st.warning(relative_upgrade_msg)
-
-                # **Highlight Warnings in Red**
-                if result["Warning"]:
-                    st.error(result["Warning"])
-                # Add flight duration insight
-                comfort_factor = result["Comfort Factor"]
-                if travel_hours >= UPGRADE_COMFORT_HOURS:
-                    st.info(f"Long flight ({travel_hours}h) increases upgrade value by {(comfort_factor-1)*100:.0f}% in our calculations.")
-
-with tab2:
     st.subheader("Compare Ticket Purchase Options")
     
     if show_help:
@@ -461,6 +375,91 @@ with tab2:
                     st.info(f"Good value with Miles + Cash option: {cpm_mixed:.2f} cents per mile")
                 elif cpm_mixed < 1.0:
                     st.warning(f"Below average value with Miles + Cash option: {cpm_mixed:.2f} cents per mile")
+
+with tab2:
+    st.subheader("💺 Evaluate Your Upgrade Offer")
+    
+    if show_help:
+        st.info("""
+        This evaluates different upgrade options available on United flights.
+        - **Miles + Cash Upgrade**: Using miles plus a cash co-pay
+        - **Cash-Only Upgrade**: Paying a fee to upgrade without using miles
+        - **Full-Fare Business/First**: Buying the higher cabin outright
+        
+        The tool calculates which option offers the best value based on your inputs.
+        """)
+
+    # User Inputs
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        from_class = st.selectbox("Current Cabin Class", cabin_classes, key="upgrade_from")
+        miles = st.number_input("Miles for Upgrade (Miles + Cash Option, leave 0 if unknown)", min_value=0, step=1000, key="upgrade_miles")
+        full_cash_upgrade = st.number_input("Cash-Only Upgrade Cost ($)", min_value=0.0, step=50.0, key="upgrade_cash_only")
+
+    with col2:
+        to_class = st.selectbox("Upgrade To", cabin_classes, index=2, key="upgrade_to")
+        cash_cost = st.number_input("Cash Cost for Miles + Cash Upgrade ($, leave 0 if unknown)", min_value=0.0, step=50.0)
+        full_fare_cost = st.number_input("Full-Fare Business/First Class Cost ($, leave 0 if unknown)", min_value=0.0, step=100.0)
+    base_fare = st.number_input("Base Fare You Paid for Economy/Premium ($, leave 0 if unknown)", min_value=0.0, step=50.0)
+    base_fare_miles = st.number_input("Base Miles You Paid for Economy/Premium (leave 0 if unknown)", min_value=0.0, step=50.0)
+
+    if base_fare_miles > 0:
+        base_fare_miles_value_low, base_fare_miles_value_high = calculate_miles_value(base_fare_miles)
+        base_fare = base_fare + base_fare_miles_value_high
+
+    travel_hours = st.slider("Flight Duration (in hours)", min_value=1, max_value=20, value=5, key="upgrade_duration")    
+
+    if st.button("Evaluate Upgrade Offer"):
+        result = evaluate_upgrade(miles, cash_cost, full_cash_upgrade, full_fare_cost, travel_hours, from_class, to_class)
+        
+        # Check for errors
+        if "Error" in result:
+            st.error(result["Error"])
+        else:
+            # Stylized Output Section
+            st.markdown("### ✈️ **Upgrade Analysis**")
+
+            # Use Columns for better formatting
+            if "Warning" in result and result["Warning"] and "No upgrade selected" in result["Verdict"]:
+                st.warning(result["Warning"])
+            else:
+                # **Accentuation of Verdict**
+                st.markdown("### 🔎 **Final Verdict**")
+                if "✅" in result["Verdict"]:
+                    st.success(result["Verdict"])
+                else:
+                    st.warning(result["Verdict"])
+
+                #col1, col2 = st.columns(2)
+
+                #with col1:
+                st.markdown("##### 💰 **Cost Breakdown**")
+                st.markdown(f"**Miles Worth:** {result['Miles Worth (Low)']} - {result['Miles Worth (High)']}", unsafe_allow_html=True)
+                st.markdown(f"**Miles + Cash Upgrade Cost:** {result['Total Upgrade Cost (Miles + Cash)']}", unsafe_allow_html=True)
+                if full_cash_upgrade != 0:
+                    st.markdown(f"**Cash-Only Upgrade Cost:** {result['Total Upgrade Cost (Cash-Only)']}", unsafe_allow_html=True)
+                if full_fare_cost != 0:
+                    st.markdown(f"**Full-Fare Business Class:** {result['Full-Fare Business/First Class Price']}", unsafe_allow_html=True)
+                
+                # Evaluate relative upgrade cost (based on cash-only upgrade)
+                relative_upgrade_msg = evaluate_relative_upgrade_cost(base_fare, full_cash_upgrade)
+                if relative_upgrade_msg:
+                    st.markdown("### 💸 **Upgrade Cost vs. Base Fare**")
+                    if "✅" in relative_upgrade_msg:
+                        st.success(relative_upgrade_msg)
+                    elif "❌" in relative_upgrade_msg:
+                        st.error(relative_upgrade_msg)
+                    else:
+                        st.warning(relative_upgrade_msg)
+
+                # **Highlight Warnings in Red**
+                if result["Warning"]:
+                    st.error(result["Warning"])
+                # Add flight duration insight
+                comfort_factor = result["Comfort Factor"]
+                if travel_hours >= UPGRADE_COMFORT_HOURS:
+                    st.info(f"Long flight ({travel_hours}h) increases upgrade value by {(comfort_factor-1)*100:.0f}% in our calculations.")
 
 with tab3:
     st.subheader("Evaluate Award Accelerator Deals")
