@@ -1,5 +1,16 @@
 import streamlit as st
 
+# Initialize session state for user profiles
+if 'user_profile' not in st.session_state:
+    st.session_state.user_profile = {
+        'travel_pattern': 'leisure_traveler',
+        'personal_mile_value': 0.013,
+        'comfort_importance': 3,
+        'annual_flights': 12,
+        'current_pqp': 0,
+        'current_pqf': 0
+    }
+
 st.set_page_config(
     page_title="United Ticket Purchase Evaluator",     # Title shown on browser tab
     page_icon="✈️",                             # Favicon/icon
@@ -13,6 +24,79 @@ MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
 VERSION = "5.5"
 UPGRADE_COMFORT_HOURS = 6
+
+# Elite Status Thresholds and Benefits
+ELITE_STATUS_THRESHOLDS = {
+    "General Member": {"pqp": 0, "pqf": 0},
+    "Premier Silver": {"pqp": 4000, "pqf": 25},
+    "Premier Gold": {"pqp": 8000, "pqf": 50},
+    "Premier Platinum": {"pqp": 12000, "pqf": 75},
+    "Premier 1K": {"pqp": 18000, "pqf": 100},
+    "Global Services": {"pqp": 25000, "pqf": 150}  # Invitation only, but good reference
+}
+
+ELITE_BENEFITS = {
+    "General Member": {
+        "upgrade_priority": 0,
+        "bag_fee_waiver": False,
+        "lounge_access": False,
+        "companion_upgrade": False,
+        "award_bonus": 0
+    },
+    "Premier Silver": {
+        "upgrade_priority": 1,
+        "bag_fee_waiver": True,
+        "lounge_access": False,
+        "companion_upgrade": False,
+        "award_bonus": 0.25
+    },
+    "Premier Gold": {
+        "upgrade_priority": 2,
+        "bag_fee_waiver": True,
+        "lounge_access": True,
+        "companion_upgrade": False,
+        "award_bonus": 0.5
+    },
+    "Premier Platinum": {
+        "upgrade_priority": 3,
+        "bag_fee_waiver": True,
+        "lounge_access": True,
+        "companion_upgrade": True,
+        "award_bonus": 0.75
+    },
+    "Premier 1K": {
+        "upgrade_priority": 4,
+        "bag_fee_waiver": True,
+        "lounge_access": True,
+        "companion_upgrade": True,
+        "award_bonus": 1.0
+    }
+}
+
+# Personal Value Calculator Defaults
+DEFAULT_TRAVEL_PATTERNS = {
+    "business_traveler": {
+        "annual_flights": 40,
+        "avg_flight_hours": 3.5,
+        "domestic_international_ratio": 0.7,
+        "upgrade_value_multiplier": 1.3,
+        "mile_valuation": 0.014
+    },
+    "leisure_traveler": {
+        "annual_flights": 8,
+        "avg_flight_hours": 6.0,
+        "domestic_international_ratio": 0.3,
+        "upgrade_value_multiplier": 1.1,
+        "mile_valuation": 0.013
+    },
+    "frequent_flyer": {
+        "annual_flights": 60,
+        "avg_flight_hours": 4.0,
+        "domestic_international_ratio": 0.5,
+        "upgrade_value_multiplier": 1.5,
+        "mile_valuation": 0.015
+    }
+}
 
 # Cabin Class Options
 cabin_classes = ["Economy", "Premium Plus", "Business (Polaris)"]
@@ -43,6 +127,136 @@ def validate_inputs(miles, cost):
     if miles < 0:
         return False, "Miles cannot be negative"
     return True, ""
+
+# Elite Status Progress Tracker Functions
+def get_current_status(pqp, pqf):
+    """Determine current elite status based on PQP and PQF"""
+    current_status = "General Member"
+    for status, requirements in ELITE_STATUS_THRESHOLDS.items():
+        if pqp >= requirements["pqp"] and pqf >= requirements["pqf"]:
+            current_status = status
+    return current_status
+
+def get_next_status(current_status):
+    """Get the next elite status level"""
+    statuses = list(ELITE_STATUS_THRESHOLDS.keys())
+    current_index = statuses.index(current_status)
+    if current_index < len(statuses) - 1:
+        return statuses[current_index + 1]
+    return current_status
+
+def calculate_status_progress(current_pqp, current_pqf, purchase_pqp=0):
+    """Calculate progress toward next status level"""
+    total_pqp = current_pqp + purchase_pqp
+    current_status = get_current_status(current_pqp, current_pqf)
+    next_status = get_next_status(current_status)
+    
+    if current_status == next_status:
+        return {
+            "current_status": current_status,
+            "next_status": "Max Level Reached",
+            "pqp_needed": 0,
+            "pqf_needed": 0,
+            "progress_percentage": 100,
+            "will_purchase_help": False
+        }
+    
+    next_requirements = ELITE_STATUS_THRESHOLDS[next_status]
+    pqp_needed = max(0, next_requirements["pqp"] - current_pqp)
+    pqf_needed = max(0, next_requirements["pqf"] - current_pqf)
+    
+    # Calculate progress percentage based on PQP (primary qualifier)
+    if next_requirements["pqp"] > 0:
+        progress_percentage = min(100, (current_pqp / next_requirements["pqp"]) * 100)
+    else:
+        progress_percentage = 100
+    
+    # Check if purchase will help achieve next status
+    pqp_after_purchase = current_pqp + purchase_pqp
+    will_purchase_help = pqp_after_purchase >= next_requirements["pqp"] and current_pqf >= next_requirements["pqf"]
+    
+    return {
+        "current_status": current_status,
+        "next_status": next_status,
+        "pqp_needed": pqp_needed,
+        "pqf_needed": pqf_needed,
+        "progress_percentage": progress_percentage,
+        "will_purchase_help": will_purchase_help,
+        "pqp_after_purchase": pqp_after_purchase
+    }
+
+def calculate_status_value(current_status, next_status, annual_flights):
+    """Calculate the monetary value of achieving next status"""
+    if current_status == next_status:
+        return 0
+    
+    current_benefits = ELITE_BENEFITS.get(current_status, ELITE_BENEFITS["General Member"])
+    next_benefits = ELITE_BENEFITS.get(next_status, ELITE_BENEFITS["General Member"])
+    
+    annual_value = 0
+    
+    # Bag fee savings (assuming $35 per bag, 1 bag per flight)
+    if not current_benefits["bag_fee_waiver"] and next_benefits["bag_fee_waiver"]:
+        annual_value += annual_flights * 35
+    
+    # Lounge access value (assuming $50 per visit)
+    if not current_benefits["lounge_access"] and next_benefits["lounge_access"]:
+        annual_value += annual_flights * 50 * 0.3  # 30% of flights use lounge
+    
+    # Award bonus value (assuming 50,000 miles earned annually)
+    award_bonus_diff = next_benefits["award_bonus"] - current_benefits["award_bonus"]
+    if award_bonus_diff > 0:
+        annual_value += 50000 * award_bonus_diff * 0.0135  # 1.35 cents per mile
+    
+    return annual_value
+
+# Personal Value Calculator Functions
+def get_personalized_mile_value(travel_pattern, redemption_preferences):
+    """Calculate personalized mile valuation based on travel patterns"""
+    base_value = DEFAULT_TRAVEL_PATTERNS[travel_pattern]["mile_valuation"]
+    
+    # Adjust based on redemption preferences
+    adjustments = {
+        "economy_domestic": -0.002,
+        "economy_international": 0.0,
+        "business_domestic": 0.001,
+        "business_international": 0.003,
+        "first_international": 0.005
+    }
+    
+    return base_value + adjustments.get(redemption_preferences, 0)
+
+def calculate_personal_upgrade_value(travel_pattern, comfort_importance, flight_hours):
+    """Calculate personalized upgrade value multiplier"""
+    base_multiplier = DEFAULT_TRAVEL_PATTERNS[travel_pattern]["upgrade_value_multiplier"]
+    
+    # Adjust for comfort importance (1-5 scale)
+    comfort_adjustment = (comfort_importance - 3) * 0.1
+    
+    # Adjust for flight length
+    length_adjustment = min(0.3, flight_hours * 0.05)
+    
+    return base_multiplier + comfort_adjustment + length_adjustment
+
+def generate_personalized_recommendations(user_profile, purchase_data):
+    """Generate personalized recommendations based on user profile"""
+    recommendations = []
+    
+    mile_value = user_profile["personal_mile_value"]
+    
+    # Miles purchase recommendation
+    if purchase_data.get("miles_cpm", 0) < mile_value * 100:
+        recommendations.append("✅ This miles purchase aligns well with your personal valuation!")
+    elif purchase_data.get("miles_cpm", 0) > mile_value * 100 * 1.2:
+        recommendations.append("❌ This miles purchase is expensive compared to your typical redemption value.")
+    
+    # Upgrade recommendation based on travel pattern
+    if user_profile["travel_pattern"] == "business_traveler" and purchase_data.get("flight_hours", 0) < 3:
+        recommendations.append("💼 As a business traveler, short flight upgrades may not provide enough value.")
+    elif user_profile["travel_pattern"] == "leisure_traveler" and purchase_data.get("flight_hours", 0) > 6:
+        recommendations.append("🏖️ Long leisure flights are perfect opportunities for upgrades!")
+    
+    return recommendations
 
 # Function to evaluate Award Accelerator (miles + PQP purchases)
 def evaluate_accelerator(miles, pqp, cost):
@@ -293,7 +507,7 @@ with help_col1:
     st.session_state.show_help = show_help
 
 # Create tabs
-tab1, tab2, tab3, tab4 = st.tabs(["🎟️ Ticket Purchase", "💺 Upgrade Offer", "🏆 Award Accelerator", "💵 Buy Miles"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🎟️ Ticket Purchase", "💺 Upgrade Offer", "🏆 Award Accelerator", "💵 Buy Miles", "🏅 Elite Status Tracker", "👤 Personal Calculator"])
 
 with tab1:
     st.subheader("Compare Ticket Purchase Options")
@@ -609,6 +823,276 @@ with tab4:
                     st.info(f"Good miles redemption value: {cpm:.2f} cents per mile (below the typical 1.2-1.5¢ range)")
                 elif cpm > 1.5:
                     st.warning(f"Below average miles redemption value: {cpm:.2f} cents per mile (above the typical 1.2-1.5¢ range)")
+
+with tab5:
+    st.subheader("🏅 Elite Status Progress Tracker")
+    
+    if show_help:
+        st.info("""
+        Track your progress toward United Premier status and see how purchases can help you reach the next level.
+        This tool calculates the value of elite benefits and helps you make status-run decisions.
+        """)
+    
+    # Current Status Input
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("##### Current Status Progress")
+        current_pqp = st.number_input("Current PQP (Premier Qualifying Points)", min_value=0, step=100, value=0, key="current_pqp")
+        current_pqf = st.number_input("Current PQF (Premier Qualifying Flights)", min_value=0, step=1, value=0, key="current_pqf")
+        
+    with col2:
+        st.markdown("##### Annual Travel Pattern")
+        annual_flights = st.number_input("Annual Flights", min_value=1, step=1, value=12, key="annual_flights")
+        purchase_pqp = st.number_input("PQP from this Purchase", min_value=0, step=100, value=0, key="purchase_pqp")
+    
+    if st.button("Analyze Status Progress"):
+        progress = calculate_status_progress(current_pqp, current_pqf, purchase_pqp)
+        
+        # Status Overview
+        st.markdown("### 📊 **Status Analysis**")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Current Status", progress["current_status"])
+            
+        with col2:
+            st.metric("Next Status", progress["next_status"])
+            
+        with col3:
+            st.metric("Progress", f"{progress['progress_percentage']:.1f}%")
+        
+        # Progress Bar
+        st.progress(progress["progress_percentage"] / 100)
+        
+        # Requirements for Next Level
+        if progress["next_status"] != "Max Level Reached":
+            st.markdown("#### 🎯 **Requirements for Next Level**")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("PQP Needed", f"{progress['pqp_needed']:,}")
+            with col2:
+                st.metric("PQF Needed", progress["pqf_needed"])
+            
+            # Purchase Impact
+            if purchase_pqp > 0:
+                st.markdown("#### 💳 **Purchase Impact**")
+                if progress["will_purchase_help"]:
+                    st.success(f"🎉 This purchase will help you reach {progress['next_status']}!")
+                    st.markdown(f"**PQP after purchase:** {progress['pqp_after_purchase']:,}")
+                else:
+                    remaining_after = max(0, progress["pqp_needed"] - purchase_pqp)
+                    st.info(f"This purchase will get you {purchase_pqp:,} PQP closer. You'll still need {remaining_after:,} more PQP.")
+            
+            # Calculate Value of Status
+            status_value = calculate_status_value(progress["current_status"], progress["next_status"], annual_flights)
+            
+            if status_value > 0:
+                st.markdown("#### 💰 **Estimated Annual Value of Next Status**")
+                st.success(f"Achieving {progress['next_status']} could save you approximately **${status_value:,.0f}** annually")
+                
+                # Break down the value
+                current_benefits = ELITE_BENEFITS.get(progress["current_status"], ELITE_BENEFITS["General Member"])
+                next_benefits = ELITE_BENEFITS.get(progress["next_status"], ELITE_BENEFITS["General Member"])
+                
+                benefits_gained = []
+                if not current_benefits["bag_fee_waiver"] and next_benefits["bag_fee_waiver"]:
+                    benefits_gained.append("🧳 Free checked bags")
+                if not current_benefits["lounge_access"] and next_benefits["lounge_access"]:
+                    benefits_gained.append("🍸 United Club lounge access")
+                if not current_benefits["companion_upgrade"] and next_benefits["companion_upgrade"]:
+                    benefits_gained.append("👫 Companion upgrade certificates")
+                if next_benefits["award_bonus"] > current_benefits["award_bonus"]:
+                    bonus_increase = (next_benefits["award_bonus"] - current_benefits["award_bonus"]) * 100
+                    benefits_gained.append(f"🎁 {bonus_increase:.0f}% bonus award miles")
+                
+                if benefits_gained:
+                    st.markdown("**New Benefits:**")
+                    for benefit in benefits_gained:
+                        st.markdown(f"- {benefit}")
+
+with tab6:
+    st.subheader("👤 Personal Value Calculator")
+    
+    if show_help:
+        st.info("""
+        Create a personalized profile to get customized recommendations based on your travel patterns,
+        preferences, and redemption habits. This helps make more accurate value assessments.
+        """)
+    
+    # Personal Profile Setup
+    st.markdown("#### ✈️ **Travel Profile Setup**")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        travel_pattern = st.selectbox(
+            "Travel Pattern",
+            options=list(DEFAULT_TRAVEL_PATTERNS.keys()),
+            format_func=lambda x: x.replace("_", " ").title(),
+            key="travel_pattern"
+        )
+        
+        redemption_preference = st.selectbox(
+            "Typical Redemption Type",
+            options=["economy_domestic", "economy_international", "business_domestic", "business_international", "first_international"],
+            format_func=lambda x: x.replace("_", " ").title(),
+            key="redemption_pref"
+        )
+        
+    with col2:
+        comfort_importance = st.slider(
+            "Comfort Importance (1=Low, 5=High)",
+            min_value=1,
+            max_value=5,
+            value=3,
+            key="comfort_importance"
+        )
+        
+        flexibility = st.slider(
+            "Travel Flexibility (1=Rigid, 5=Very Flexible)",
+            min_value=1,
+            max_value=5,
+            value=3,
+            key="flexibility"
+        )
+    
+    # Calculate personalized values
+    personal_mile_value = get_personalized_mile_value(travel_pattern, redemption_preference)
+    
+    # Save to session state
+    st.session_state.user_profile.update({
+        'travel_pattern': travel_pattern,
+        'personal_mile_value': personal_mile_value,
+        'comfort_importance': comfort_importance,
+        'redemption_preference': redemption_preference
+    })
+    
+    # Display personalized insights
+    st.markdown("#### 🎯 **Your Personalized Profile**")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Personal Mile Value", f"{personal_mile_value:.3f} cents")
+        
+    with col2:
+        pattern_data = DEFAULT_TRAVEL_PATTERNS[travel_pattern]
+        st.metric("Annual Flights", f"{pattern_data['annual_flights']}")
+        
+    with col3:
+        st.metric("Avg Flight Hours", f"{pattern_data['avg_flight_hours']}")
+    
+    # Quick Actions using profile
+    st.markdown("#### ⚡ **Quick Profile Actions**")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("Apply to Miles Purchase", key="apply_miles"):
+            # Switch to Buy Miles tab with pre-filled values
+            st.info("💡 Switch to the 'Buy Miles' tab to use your personalized mile valuation!")
+    
+    with col2:
+        if st.button("Apply to Upgrades", key="apply_upgrades"):
+            # Switch to Upgrade tab with personalized multipliers
+            st.info("💡 Switch to the 'Upgrade Offer' tab to use your personalized comfort preferences!")
+    
+    with col3:
+        if st.button("Reset Profile", key="reset_profile"):
+            # Reset session state
+            for key in st.session_state.user_profile:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.success("Profile reset! Refresh the page to see changes.")
+
+    # Sample calculation with personalized values
+    st.markdown("#### 🧮 **Personalized Calculator**")
+    
+    calculation_type = st.radio(
+        "What would you like to calculate?",
+        ["Mile Purchase Value", "Upgrade Value", "Both"],
+        key="calc_type"
+    )
+    
+    if calculation_type in ["Mile Purchase Value", "Both"]:
+        st.markdown("##### 💳 **Miles Purchase Analysis**")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            purchase_miles = st.number_input("Miles to Purchase", min_value=0, step=1000, key="personal_purchase_miles")
+        with col2:
+            purchase_cost = st.number_input("Purchase Cost ($)", min_value=0.0, step=50.0, key="personal_purchase_cost")
+        
+        if purchase_miles > 0 and purchase_cost > 0:
+            cpm = (purchase_cost / purchase_miles) * 100
+            personal_cpm_threshold = personal_mile_value * 100
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Cost per Mile", f"{cpm:.2f}¢")
+            with col2:
+                st.metric("Your Threshold", f"{personal_cpm_threshold:.2f}¢")
+            
+            if cpm < personal_cpm_threshold:
+                st.success(f"✅ Great deal! This is {personal_cpm_threshold - cpm:.2f}¢ below your personal threshold.")
+            elif cpm < personal_cpm_threshold * 1.1:
+                st.info("🟡 Borderline deal - consider your immediate redemption plans.")
+            else:
+                st.warning(f"❌ Expensive - this is {cpm - personal_cpm_threshold:.2f}¢ above your personal threshold.")
+    
+    if calculation_type in ["Upgrade Value", "Both"]:
+        st.markdown("##### 💺 **Personalized Upgrade Analysis**")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            flight_hours = st.number_input("Flight Duration (hours)", min_value=0.5, step=0.5, value=3.0, key="personal_flight_hours")
+            from_cabin = st.selectbox("From Cabin", cabin_classes, key="personal_from_cabin")
+        with col2:
+            to_cabin = st.selectbox("To Cabin", cabin_classes, index=1, key="personal_to_cabin")
+            upgrade_cost = st.number_input("Upgrade Cost ($)", min_value=0.0, step=25.0, key="personal_upgrade_cost")
+        
+        if upgrade_cost > 0:
+            personal_upgrade_multiplier = calculate_personal_upgrade_value(travel_pattern, comfort_importance, flight_hours)
+            
+            # Generate personalized recommendations
+            user_profile = {
+                "travel_pattern": travel_pattern,
+                "personal_mile_value": personal_mile_value,
+                "comfort_importance": comfort_importance
+            }
+            
+            purchase_data = {
+                "flight_hours": flight_hours,
+                "upgrade_cost": upgrade_cost
+            }
+            
+            recommendations = generate_personalized_recommendations(user_profile, purchase_data)
+            
+            st.markdown("##### 🎯 **Personalized Recommendations**")
+            for rec in recommendations:
+                if "✅" in rec:
+                    st.success(rec)
+                elif "❌" in rec:
+                    st.error(rec)
+                else:
+                    st.info(rec)
+            
+            # Additional insights based on profile
+            st.markdown("##### 💡 **Profile-Based Insights**")
+            
+            if travel_pattern == "business_traveler":
+                st.info("💼 Business travelers often benefit from consistent upgrade experiences for productivity and rest.")
+            elif travel_pattern == "leisure_traveler":
+                st.info("🏖️ Leisure travelers should focus upgrades on longer flights where comfort makes the biggest difference.")
+            elif travel_pattern == "frequent_flyer":
+                st.info("🛫 Frequent flyers can maximize value by strategically timing upgrades and status runs.")
+            
+            if comfort_importance >= 4:
+                st.info("😌 High comfort preference detected - upgrades may provide extra value for you beyond just monetary calculations.")
+            elif comfort_importance <= 2:
+                st.info("💰 You prioritize value over comfort - focus on deals with clear financial benefits.")
 
 # Add an expanded disclaimer and about section
 with st.expander("About & Disclaimer"):
