@@ -1,7 +1,7 @@
 import streamlit as st
 
 st.set_page_config(
-    page_title="United Upgrade Evaluator",     # Title shown on browser tab
+    page_title="United Ticket Purchase Evaluator",     # Title shown on browser tab
     page_icon="✈️",                             # Favicon/icon
     layout="centered",                          # Optional: or "wide"
     initial_sidebar_state="auto"                # Optional
