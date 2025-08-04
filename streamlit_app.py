@@ -548,7 +548,7 @@ with tab4:
         miles_price = st.number_input("Miles", min_value=0, step=1000, key="purchase_miles_offer")
         bonus_miles = st.number_input("Bonus Miles (if any)", min_value=0, step=1000, key="purchase_miles_bonus_offer")
         
-    if st.button("Evaluate The offer"):
+    if st.button("Evaluate the Offer"):
         # Check if we have enough data to make a comparison
         if miles_price == 0:
             st.warning("Please enter miles.")
