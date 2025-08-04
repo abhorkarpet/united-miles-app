@@ -198,14 +198,20 @@ def evaluate_best_option(miles_price, cash_price, miles_plus_cash_miles, miles_p
     # Calculate total costs for different options
     total_cost_miles_low = miles_cash_value_low
     total_cost_miles_high = miles_cash_value_high
-    total_cost_mixed_low = mixed_miles_value_low + miles_plus_cash_cash
-    total_cost_mixed_high = mixed_miles_value_high + miles_plus_cash_cash
-    
+
+    valid_mixed = miles_plus_cash_miles > 0 and miles_plus_cash_cash > 0
+    total_cost_mixed_low = (
+        mixed_miles_value_low + miles_plus_cash_cash if valid_mixed else float('inf')
+    )
+    total_cost_mixed_high = (
+        mixed_miles_value_high + miles_plus_cash_cash if valid_mixed else float('inf')
+    )
+
     # Create dictionary of options for easier comparison
     options = {
         "Cash": cash_price,
         "Miles": total_cost_miles_low,  # Use low estimate for conservative comparison
-        "Miles + Cash": total_cost_mixed_low if miles_plus_cash_miles > 0 and miles_plus_cash_cash > 0 else float('inf')
+        "Miles + Cash": total_cost_mixed_low,
     }
     
     # Find option with lowest cost
@@ -228,7 +234,11 @@ def evaluate_best_option(miles_price, cash_price, miles_plus_cash_miles, miles_p
         "Miles Cash Value (Low)": format_currency(miles_cash_value_low),
         "Miles Cash Value (High)": format_currency(miles_cash_value_high),
         "Total Cost (Miles)": f"{format_currency(total_cost_miles_low)} - {format_currency(total_cost_miles_high)}",
-        "Total Cost (Miles + Cash)": f"{format_currency(total_cost_mixed_low)} - {format_currency(total_cost_mixed_high)}",
+        "Total Cost (Miles + Cash)": (
+            f"{format_currency(total_cost_mixed_low)} - {format_currency(total_cost_mixed_high)}"
+            if valid_mixed
+            else "N/A"
+        ),
         "Total Cost (Cash)": format_currency(cash_price),
         "CPM (Miles Option)": f"{cpm_miles:.2f} cents" if miles_price > 0 else "N/A",
         "CPM (Miles + Cash)": f"{cpm_miles_plus_cash:.2f} cents" if miles_plus_cash_miles > 0 else "N/A",
