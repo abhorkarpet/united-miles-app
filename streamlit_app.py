@@ -11,7 +11,7 @@ st.set_page_config(
 MILE_VALUE_LOW = 0.012  # United miles valuation low (1.2 cents)
 MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
-VERSION = "6.0"
+VERSION = "6.1"
 UPGRADE_COMFORT_HOURS = 6
 
 # Cabin Class Options
@@ -451,6 +451,7 @@ with tab2:
     input_method = st.radio(
         "What would you like to evaluate?",
         ["I have miles required - tell me max cash price", "I have cash price - tell me max miles"],
+        index=1,  # Default to "I have cash price"
         key="valuation_method"
     )
     
@@ -517,6 +518,7 @@ with tab2:
         cash_input = st.number_input(
             "Cash Price of the Ticket ($)",
             min_value=1.0,
+            value=500.0,
             step=10.0,
             help="Enter the cash price United is charging for this ticket"
         )
