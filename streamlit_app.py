@@ -325,7 +325,9 @@ if 'show_help' not in st.session_state:
     st.session_state.show_help = False
 
 # Streamlit UI with Tabs
-st.image(UA_LOGO_URL, width=250)  # Display United Airlines Logo
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.image(UA_LOGO_URL, width=250)  # Display United Airlines Logo centered
 st.title("United Airlines Deal Evaluator ✈️")
 st.markdown("Analyze **Award Accelerators, Upgrade Offers, Ticket Purchases, and Buy Miles Offer** to find the best value.")
 
