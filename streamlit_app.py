@@ -11,7 +11,7 @@ st.set_page_config(
 MILE_VALUE_LOW = 0.012  # United miles valuation low (1.2 cents)
 MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
-VERSION = "5.5"
+VERSION = "6.0"
 UPGRADE_COMFORT_HOURS = 6
 
 # Cabin Class Options
@@ -277,6 +277,49 @@ def evaluate_miles_purchase(miles_price, cash_price):
 
     }
 
+# Function to calculate maximum purchase values
+def calculate_max_purchase_value(miles_input=None, cash_input=None):
+    """
+    Calculate the maximum value a user should be willing to pay.
+    If miles are provided, calculate max cash price.
+    If cash is provided, calculate max miles.
+    """
+    if miles_input is not None and miles_input > 0:
+        # User entered miles, calculate max cash price
+        miles_worth_low, miles_worth_high = calculate_miles_value(miles_input)
+        max_cash_price = miles_worth_high  # Use high valuation for conservative max price
+        
+        # Calculate CPM
+        cpm = (max_cash_price / miles_input) * 100 if miles_input > 0 else 0
+        
+        return {
+            "type": "miles_to_cash",
+            "input_miles": miles_input,
+            "max_cash_price": max_cash_price,
+            "cpm": cpm,
+            "valuation_range": f"{format_currency(miles_worth_low)} - {format_currency(miles_worth_high)}"
+        }
+    
+    elif cash_input is not None and cash_input > 0:
+        # User entered cash, calculate max miles
+        max_miles_low = int(cash_input / MILE_VALUE_HIGH)  # Conservative estimate
+        max_miles_high = int(cash_input / MILE_VALUE_LOW)  # Optimistic estimate
+        
+        # Calculate CPM for the conservative estimate
+        cpm = (cash_input / max_miles_low) * 100 if max_miles_low > 0 else 0
+        
+        return {
+            "type": "cash_to_miles",
+            "input_cash": cash_input,
+            "max_miles_low": max_miles_low,
+            "max_miles_high": max_miles_high,
+            "cpm": cpm,
+            "recommended_miles": max_miles_low  # Use conservative estimate
+        }
+    
+    else:
+        return {"error": "Please provide either miles or cash amount"}
+
 # Initialize session state if not exists
 if 'show_help' not in st.session_state:
     st.session_state.show_help = False
@@ -293,7 +336,7 @@ with help_col1:
     st.session_state.show_help = show_help
 
 # Create tabs
-tab1, tab2, tab3, tab4 = st.tabs(["🎟️ Ticket Purchase", "💺 Upgrade Offer", "🏆 Award Accelerator", "💵 Buy Miles"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["🎟️ Ticket Purchase", "💰 Break-Even Calculator", "💺 Upgrade Offer", "🏆 Award Accelerator", "💵 Buy Miles"])
 
 with tab1:
     st.subheader("Compare Ticket Purchase Options")
@@ -387,6 +430,147 @@ with tab1:
                     st.warning(f"Below average value with Miles + Cash option: {cpm_mixed:.2f} cents per mile")
 
 with tab2:
+    st.subheader("💰 Break-Even Calculator")
+    
+    if show_help:
+        st.info("""
+        This tab helps you determine the maximum value you should be willing to pay for a ticket:
+        
+        **If you enter miles required:**
+        - The app calculates the highest cash price you should pay before it becomes a bad deal
+        
+        **If you enter cash price:**
+        - The app calculates the maximum number of miles you should spend before it becomes a bad deal
+        
+        This helps you make informed decisions about whether a ticket price is reasonable.
+        """)
+    
+    # Input method selection
+    input_method = st.radio(
+        "What would you like to evaluate?",
+        ["I have miles required - tell me max cash price", "I have cash price - tell me max miles"],
+        key="valuation_method"
+    )
+    
+    if input_method == "I have miles required - tell me max cash price":
+        st.markdown("### 🎯 **Miles to Cash Valuation**")
+        
+        miles_input = st.number_input(
+            "Miles Required for the Ticket",
+            min_value=1000,
+            step=1000,
+            help="Enter the number of miles United is charging for this ticket"
+        )
+        
+        if st.button("Calculate Maximum Cash Price"):
+            if miles_input > 0:
+                result = calculate_max_purchase_value(miles_input=miles_input)
+                
+                if "error" not in result:
+                    st.markdown("### 💰 **Maximum Purchase Value**")
+                    
+                    # Display results
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.metric(
+                            "Maximum Cash Price",
+                            f"${result['max_cash_price']:.2f}",
+                            help="The highest cash price you should pay for this ticket"
+                        )
+                        st.markdown(f"**Miles Value Range:** {result['valuation_range']}")
+                    
+                    with col2:
+                        st.metric(
+                            "Cents per Mile",
+                            f"{result['cpm']:.2f}¢",
+                            help="The cents per mile value at the maximum price"
+                        )
+                        st.markdown(f"**Input Miles:** {miles_input:,}")
+                    
+                    # Provide advice based on CPM
+                    st.markdown("### 💡 **Value Assessment**")
+                    cpm = result['cpm']
+                    if cpm <= 1.5:
+                        st.success(f"✅ Good value! At ${result['max_cash_price']:.2f}, you're getting {cpm:.2f} cents per mile, which is within the typical valuation range (1.2-1.5¢).")
+                    elif cpm <= 2.0:
+                        st.warning(f"🟡 Acceptable value. At ${result['max_cash_price']:.2f}, you're getting {cpm:.2f} cents per mile, which is above typical valuation but may be worth it for premium routes.")
+                    else:
+                        st.error(f"❌ Poor value. At ${result['max_cash_price']:.2f}, you're getting {cpm:.2f} cents per mile, which is significantly above typical valuation. Consider paying less or using cash instead.")
+                    
+                    # Additional insights
+                    st.markdown("### 📊 **Additional Insights**")
+                    st.info(f"**Decision Guide:** If the cash price is **lower** than ${result['max_cash_price']:.2f}, consider paying cash instead of using miles. If the cash price is **higher**, using miles gives you better value.")
+                    
+                    if cpm > 1.5:
+                        st.warning("**Consideration:** For high-value redemptions (international business class, premium routes), you might be willing to accept slightly higher CPM values.")
+                else:
+                    st.error(result["error"])
+            else:
+                st.warning("Please enter a valid number of miles.")
+    
+    else:  # Cash to miles valuation
+        st.markdown("### 🎯 **Cash to Miles Valuation**")
+        
+        cash_input = st.number_input(
+            "Cash Price of the Ticket ($)",
+            min_value=1.0,
+            step=10.0,
+            help="Enter the cash price United is charging for this ticket"
+        )
+        
+        if st.button("Calculate Maximum Miles"):
+            if cash_input > 0:
+                result = calculate_max_purchase_value(cash_input=cash_input)
+                
+                if "error" not in result:
+                    st.markdown("### 💰 **Maximum Miles Value**")
+                    
+                    # Display results
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.metric(
+                            "Recommended Max Miles",
+                            f"{result['recommended_miles']:,}",
+                            help="Conservative estimate of maximum miles you should spend"
+                        )
+                        st.markdown(f"**Miles Range:** {result['max_miles_low']:,} - {result['max_miles_high']:,}")
+                    
+                    with col2:
+                        st.metric(
+                            "Cents per Mile",
+                            f"{result['cpm']:.2f}¢",
+                            help="The cents per mile value at the recommended miles"
+                        )
+                        st.markdown(f"**Input Cash Price:** ${cash_input:.2f}")
+                    
+                    # Provide advice based on CPM
+                    st.markdown("### 💡 **Value Assessment**")
+                    cpm = result['cpm']
+                    if cpm <= 1.5:
+                        st.success(f"✅ Good value! At {result['recommended_miles']:,} miles, you're getting {cpm:.2f} cents per mile, which is within the typical valuation range (1.2-1.5¢).")
+                    elif cpm <= 2.0:
+                        st.warning(f"🟡 Acceptable value. At {result['recommended_miles']:,} miles, you're getting {cpm:.2f} cents per mile, which is above typical valuation but may be worth it for premium routes.")
+                    else:
+                        st.error(f"❌ Poor value. At {result['recommended_miles']:,} miles, you're getting {cpm:.2f} cents per mile, which is significantly above typical valuation.")
+                    
+                    # Additional insights
+                    st.markdown("### 📊 **Additional Insights**")
+                    st.info(f"**Decision Guide:** If United charges **more** than {result['recommended_miles']:,} miles, consider paying cash instead. If they charge **fewer** miles, using miles gives you better value.")
+                    
+                    st.markdown(f"**Miles Range Explanation:**")
+                    st.markdown(f"- **Conservative ({result['max_miles_low']:,} miles):** Based on 1.5¢ per mile valuation")
+                    st.markdown(f"- **Optimistic ({result['max_miles_high']:,} miles):** Based on 1.2¢ per mile valuation")
+                    
+                    if cpm > 1.5:
+                        st.warning("**Consideration:** For high-value redemptions (international business class, premium routes), you might be willing to accept slightly higher CPM values.")
+                else:
+                    st.error(result["error"])
+            else:
+                st.warning("Please enter a valid cash price.")
+
+with tab3:
     st.subheader("💺 Evaluate Your Upgrade Offer")
     
     if show_help:
@@ -471,7 +655,7 @@ with tab2:
                 if travel_hours >= UPGRADE_COMFORT_HOURS:
                     st.info(f"Long flight ({travel_hours}h) increases upgrade value by {(comfort_factor-1)*100:.0f}% in our calculations.")
 
-with tab3:
+with tab4:
     st.subheader("Evaluate Award Accelerator Deals")
     
     if show_help:
@@ -541,7 +725,7 @@ with tab3:
                 if miles > 0 and cost > 0:
                     st.info("This offer doesn't include PQP, so it only helps with award travel, not elite status progress.")
 
-with tab4:
+with tab5:
     st.subheader("Miles Purchase Deal")
     
     if show_help:
