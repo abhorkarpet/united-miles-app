@@ -11,7 +11,7 @@ st.set_page_config(
 MILE_VALUE_LOW = 0.012  # United miles valuation low (1.2 cents)
 MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
-VERSION = "6.5"
+VERSION = "6.6"
 UPGRADE_COMFORT_HOURS = 6
 
 # Cabin Class Options
