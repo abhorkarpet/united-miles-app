@@ -11,7 +11,7 @@ st.set_page_config(
 MILE_VALUE_LOW = 0.012  # United miles valuation low (1.2 cents)
 MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
-VERSION = "6.2"
+VERSION = "6.5"
 UPGRADE_COMFORT_HOURS = 6
 
 # Cabin Class Options
@@ -28,9 +28,13 @@ upgrade_multipliers = {
 }
 
 # Helper functions
-def calculate_miles_value(miles):
+def calculate_miles_value(miles, low_val=None, high_val=None):
     """Calculate low and high dollar value of miles"""
-    return miles * MILE_VALUE_LOW, miles * MILE_VALUE_HIGH
+    if low_val is None:
+        low_val = CURRENT_MILE_VALUE_LOW
+    if high_val is None:
+        high_val = CURRENT_MILE_VALUE_HIGH
+    return miles * low_val, miles * high_val
 
 def format_currency(value):
     """Format a value as USD currency"""
@@ -332,8 +336,8 @@ def calculate_max_purchase_value(miles_input=None, cash_input=None):
     
     elif cash_input is not None and cash_input > 0:
         # User entered cash, calculate max miles
-        max_miles_low = int(cash_input / MILE_VALUE_HIGH)  # Conservative estimate
-        max_miles_high = int(cash_input / MILE_VALUE_LOW)  # Optimistic estimate
+        max_miles_low = int(cash_input / CURRENT_MILE_VALUE_HIGH)  # Conservative estimate
+        max_miles_high = int(cash_input / CURRENT_MILE_VALUE_LOW)  # Optimistic estimate
         
         # Calculate CPM for the conservative estimate
         cpm = (cash_input / max_miles_low) * 100 if max_miles_low > 0 else 0
@@ -361,11 +365,56 @@ with col2:
 st.title("United Airlines Deal Evaluator ✈️")
 st.markdown("Analyze **Award Accelerators, Upgrade Offers, Ticket Purchases, and Buy Miles Offer** to find the best value.")
 
-# Help toggle
-help_col1, help_col2 = st.columns([1, 1 ])
-with help_col1:
+# Default mile values for calculations (will be overridden by settings tab)
+CURRENT_MILE_VALUE_LOW = MILE_VALUE_LOW
+CURRENT_MILE_VALUE_HIGH = MILE_VALUE_HIGH
+
+# Sidebar Settings
+with st.sidebar:
+    st.markdown("### ⚙️ **Settings**")
+    
+    # Mile valuation settings
+    st.markdown("**Mile Valuations**")
+    custom_low = st.number_input(
+        "Low Value (¢/mile)", 
+        min_value=0.5, 
+        max_value=5.0, 
+        value=CURRENT_MILE_VALUE_LOW * 100, 
+        step=0.1,
+        help="Conservative mile valuation"
+    )
+    
+    custom_high = st.number_input(
+        "High Value (¢/mile)", 
+        min_value=0.5, 
+        max_value=5.0, 
+        value=CURRENT_MILE_VALUE_HIGH * 100, 
+        step=0.1,
+        help="Optimistic mile valuation"
+    )
+    
+    # Validation
+    if custom_high < custom_low:
+        st.error("High value must be greater than low value")
+        custom_high = custom_low + 0.1
+    
+    # Update the current values
+    CURRENT_MILE_VALUE_LOW = custom_low / 100
+    CURRENT_MILE_VALUE_HIGH = custom_high / 100
+    
+    st.markdown(f"**Current:** {custom_low:.1f}¢ - {custom_high:.1f}¢ per mile")
+    
+    st.markdown("---")
+    
+    # Help toggle
     show_help = st.checkbox("Show Help", st.session_state.show_help)
     st.session_state.show_help = show_help
+
+# Current settings info
+st.info(f"""
+**Current Mile Valuations:** {CURRENT_MILE_VALUE_LOW*100:.1f}¢ - {CURRENT_MILE_VALUE_HIGH*100:.1f}¢ per mile\n
+**Default Values:** 1.2¢ - 1.5¢ per mile (adjust in sidebar ⚙️)
+""")
 
 # Create tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["🎟️ Ticket Purchase", "💰 Break-Even Calculator", "💺 Upgrade Offer", "🏆 Award Accelerator", "💵 Buy Miles"])
@@ -471,7 +520,7 @@ with tab2:
     st.subheader("💰 Break-Even Calculator")
     
     if show_help:
-        st.info("""
+        st.info(f"""
         This tab helps you determine the maximum value you should be willing to pay for a ticket:
         
         **If you enter miles required:**
@@ -479,6 +528,8 @@ with tab2:
         
         **If you enter cash price:**
         - The app calculates the maximum number of miles you should spend before it becomes a bad deal
+        
+        **Uses your custom mile valuations:** {CURRENT_MILE_VALUE_LOW*100:.1f}¢ - {CURRENT_MILE_VALUE_HIGH*100:.1f}¢ per mile
         
         This helps you make informed decisions about whether a ticket price is reasonable.
         """)
@@ -859,10 +910,10 @@ with st.expander("About & Disclaimer"):
     st.write("DISCLAIMER: This app is developed for informational purposes only. Please use your own judgment.")
     st.write(f"Version {VERSION}")
     
-    st.markdown("""
+    st.markdown(f"""
     ### Miles Valuation
-    - This app values United miles at 1.2-1.5 cents each
-    - Individual valuations may vary based on your redemption patterns
+    - This app uses customizable mile valuations (currently set to {CURRENT_MILE_VALUE_LOW*100:.1f}¢-{CURRENT_MILE_VALUE_HIGH*100:.1f}¢ per mile)
+    - You can adjust these values in the settings above based on your redemption patterns
     - Premium cabin international redemptions often yield higher value
     
     ### Premier Status Considerations (where applicable)
