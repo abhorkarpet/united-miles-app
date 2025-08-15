@@ -361,9 +361,9 @@ if 'show_help' not in st.session_state:
 # Streamlit UI with Tabs
 col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
-    st.image(UA_LOGO_URL, width=250)  # Display United Airlines Logo centered
+    st.image(UA_LOGO_URL, width=200)  # Reduced logo size
 st.title("United Airlines Deal Evaluator ✈️")
-st.markdown("Analyze **Award Accelerators, Upgrade Offers, Ticket Purchases, and Buy Miles Offer** to find the best value.")
+st.caption("Analyze **Award Accelerators, Upgrade Offers, Ticket Purchases, and Buy Miles Offer** to find the best value.")
 
 # Default mile values for calculations (will be overridden by settings tab)
 CURRENT_MILE_VALUE_LOW = MILE_VALUE_LOW
@@ -411,10 +411,7 @@ with st.sidebar:
     st.session_state.show_help = show_help
 
 # Current settings info
-st.info(f"""
-**Current Mile Valuations:** {CURRENT_MILE_VALUE_LOW*100:.1f}¢ - {CURRENT_MILE_VALUE_HIGH*100:.1f}¢ per mile\n
-**Default Values:** 1.2¢ - 1.5¢ per mile (adjust in sidebar ⚙️)
-""")
+st.info(f"**Current Mile Valuations:** {CURRENT_MILE_VALUE_LOW*100:.1f}¢ - {CURRENT_MILE_VALUE_HIGH*100:.1f}¢ per mile | **Default:** 1.2¢ - 1.5¢ per mile (adjust in sidebar ⚙️)")
 
 # Create tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["🎟️ Ticket Purchase", "💰 Break-Even Calculator", "💺 Upgrade Offer", "🏆 Award Accelerator", "💵 Buy Miles"])
