@@ -11,7 +11,7 @@ st.set_page_config(
 MILE_VALUE_LOW = 0.012  # United miles valuation low (1.2 cents)
 MILE_VALUE_HIGH = 0.015  # United miles valuation high (1.5 cents)
 UA_LOGO_URL = "https://logos-world.net/wp-content/uploads/2020/11/United-Airlines-Logo-700x394.png"
-VERSION = "6.1"
+VERSION = "6.2"
 UPGRADE_COMFORT_HOURS = 6
 
 # Cabin Class Options
@@ -35,6 +35,36 @@ def calculate_miles_value(miles):
 def format_currency(value):
     """Format a value as USD currency"""
     return f"${value:.2f}"
+
+def parse_user_input(input_str):
+    """
+    Parse user-friendly input formats like "13.6K", "1.2K", "500", etc.
+    Returns the numeric value.
+    """
+    if not input_str or input_str.strip() == "":
+        return 0
+    
+    input_str = str(input_str).strip().upper()
+    
+    # Handle K (thousands)
+    if 'K' in input_str:
+        try:
+            return float(input_str.replace('K', '')) * 1000
+        except ValueError:
+            return 0
+    
+    # Handle M (millions)
+    if 'M' in input_str:
+        try:
+            return float(input_str.replace('M', '')) * 1000000
+        except ValueError:
+            return 0
+    
+    # Handle regular numbers
+    try:
+        return float(input_str)
+    except ValueError:
+        return 0
 
 def validate_inputs(miles, cost):
     """Validate basic inputs"""
@@ -356,12 +386,18 @@ with tab1:
     col1, col2 = st.columns(2)
     
     with col1:
-        miles_price = st.number_input("Miles Required for Redemption", min_value=0, step=1000, key="purchase_miles")
-        miles_plus_cash_miles = st.number_input("Miles for Miles + Cash", min_value=0, step=1000, key="purchase_mixed_miles")
+        miles_price_text = st.text_input("Miles Required for Redemption", placeholder="e.g., 25K, 50000", key="purchase_miles")
+        miles_price = parse_user_input(miles_price_text)
+        
+        miles_plus_cash_miles_text = st.text_input("Miles for Miles + Cash", placeholder="e.g., 15K, 30000", key="purchase_mixed_miles")
+        miles_plus_cash_miles = parse_user_input(miles_plus_cash_miles_text)
     
     with col2:
-        cash_price = st.number_input("Full Cash Ticket Price ($)", min_value=0.0, step=50.0, key="purchase_cash")
-        miles_plus_cash_cash = st.number_input("Cash for Miles + Cash ($)", min_value=0.0, step=50.0, key="purchase_mixed_cash")
+        cash_price_text = st.text_input("Full Cash Ticket Price ($)", placeholder="e.g., 1.2K, 1200", key="purchase_cash")
+        cash_price = parse_user_input(cash_price_text)
+        
+        miles_plus_cash_cash_text = st.text_input("Cash or Fees for Miles + Cash ($)", placeholder="e.g., 300, 0.5K", key="purchase_mixed_cash")
+        miles_plus_cash_cash = parse_user_input(miles_plus_cash_cash_text)
 
     if st.button("Evaluate Best Purchase Option"):
         # Check if we have enough data to make a comparison
@@ -458,12 +494,12 @@ with tab2:
     if input_method == "I have miles required - tell me max cash price":
         st.markdown("### 🎯 **Miles to Cash Valuation**")
         
-        miles_input = st.number_input(
+        miles_input_text = st.text_input(
             "Miles Required for the Ticket",
-            min_value=1000,
-            step=1000,
-            help="Enter the number of miles United is charging for this ticket"
+            placeholder="e.g., 13.6K, 50000, 1.2M",
+            help="Enter miles (e.g., 13.6K for 13,600 miles, 50K for 50,000 miles)"
         )
+        miles_input = parse_user_input(miles_input_text)
         
         if st.button("Calculate Maximum Cash Price"):
             if miles_input > 0:
@@ -515,13 +551,13 @@ with tab2:
     else:  # Cash to miles valuation
         st.markdown("### 🎯 **Cash to Miles Valuation**")
         
-        cash_input = st.number_input(
+        cash_input_text = st.text_input(
             "Cash Price of the Ticket ($)",
-            min_value=1.0,
-            value=500.0,
-            step=10.0,
-            help="Enter the cash price United is charging for this ticket"
+            value="500",
+            placeholder="e.g., 1.2K, 500, 2.5K",
+            help="Enter cash price (e.g., 1.2K for $1,200, 500 for $500)"
         )
+        cash_input = parse_user_input(cash_input_text)
         
         if st.button("Calculate Maximum Miles"):
             if cash_input > 0:
@@ -592,15 +628,25 @@ with tab3:
     
     with col1:
         from_class = st.selectbox("Current Cabin Class", cabin_classes, key="upgrade_from")
-        miles = st.number_input("Miles for Upgrade (Miles + Cash Option, leave 0 if unknown)", min_value=0, step=1000, key="upgrade_miles")
-        full_cash_upgrade = st.number_input("Cash-Only Upgrade Cost ($)", min_value=0.0, step=50.0, key="upgrade_cash_only")
+        miles_text = st.text_input("Miles for Upgrade (Miles + Cash Option, leave 0 if unknown)", placeholder="e.g., 20K, 0", key="upgrade_miles")
+        miles = parse_user_input(miles_text)
+        
+        full_cash_upgrade_text = st.text_input("Cash-Only Upgrade Cost ($)", placeholder="e.g., 500, 1K", key="upgrade_cash_only")
+        full_cash_upgrade = parse_user_input(full_cash_upgrade_text)
 
     with col2:
         to_class = st.selectbox("Upgrade To", cabin_classes, index=2, key="upgrade_to")
-        cash_cost = st.number_input("Cash Cost for Miles + Cash Upgrade ($, leave 0 if unknown)", min_value=0.0, step=50.0)
-        full_fare_cost = st.number_input("Full-Fare Business/First Class Cost ($, leave 0 if unknown)", min_value=0.0, step=100.0)
-    base_fare = st.number_input("Base Fare You Paid for Economy/Premium ($, leave 0 if unknown)", min_value=0.0, step=50.0)
-    base_fare_miles = st.number_input("Base Miles You Paid for Economy/Premium (leave 0 if unknown)", min_value=0.0, step=50.0)
+        cash_cost_text = st.text_input("Cash Cost for Miles + Cash Upgrade ($, leave 0 if unknown)", placeholder="e.g., 200, 0.5K")
+        cash_cost = parse_user_input(cash_cost_text)
+        
+        full_fare_cost_text = st.text_input("Full-Fare Business/First Class Cost ($, leave 0 if unknown)", placeholder="e.g., 2K, 2000")
+        full_fare_cost = parse_user_input(full_fare_cost_text)
+    
+    base_fare_text = st.text_input("Base Fare You Paid for Economy/Premium ($, leave 0 if unknown)", placeholder="e.g., 800, 1.2K")
+    base_fare = parse_user_input(base_fare_text)
+    
+    base_fare_miles_text = st.text_input("Base Miles You Paid for Economy/Premium (leave 0 if unknown)", placeholder="e.g., 25K, 0")
+    base_fare_miles = parse_user_input(base_fare_miles_text)
 
     if base_fare_miles > 0:
         base_fare_miles_value_low, base_fare_miles_value_high = calculate_miles_value(base_fare_miles)
@@ -670,9 +716,14 @@ with tab4:
         - **Total Cost**: What United is charging for this offer
         """)
     
-    miles = st.number_input("Miles Offered", min_value=0, step=1000, key="accelerator_miles")
-    pqp = st.number_input("PQP Offered (Enter 0 if not included)", min_value=0, step=100, key="accelerator_pqp")
-    cost = st.number_input("Total Cost ($)", min_value=0.0, step=50.0, key="accelerator_cost")
+    miles_text = st.text_input("Miles Offered", placeholder="e.g., 50K, 100000", key="accelerator_miles")
+    miles = parse_user_input(miles_text)
+    
+    pqp_text = st.text_input("PQP Offered (Enter 0 if not included)", placeholder="e.g., 500, 0", key="accelerator_pqp")
+    pqp = parse_user_input(pqp_text)
+    
+    cost_text = st.text_input("Total Cost ($)", placeholder="e.g., 1.5K, 1500", key="accelerator_cost")
+    cost = parse_user_input(cost_text)
 
     if st.button("Evaluate Award Accelerator"):
         result = evaluate_accelerator(miles, pqp, cost)
@@ -740,11 +791,15 @@ with tab5:
     col1, col2 = st.columns(2)
 
     with col1:
-        cash_price = st.number_input("Purchase Price ($)", min_value=0.0, step=50.0, key="purchase_price")
+        cash_price_text = st.text_input("Purchase Price ($)", placeholder="e.g., 1K, 1000", key="purchase_price")
+        cash_price = parse_user_input(cash_price_text)
 
     with col2:
-        miles_price = st.number_input("Miles", min_value=0, step=1000, key="purchase_miles_offer")
-        bonus_miles = st.number_input("Bonus Miles (if any)", min_value=0, step=1000, key="purchase_miles_bonus_offer")
+        miles_price_text = st.text_input("Miles", placeholder="e.g., 50K, 50000", key="purchase_miles_offer")
+        miles_price = parse_user_input(miles_price_text)
+        
+        bonus_miles_text = st.text_input("Bonus Miles (if any)", placeholder="e.g., 10K, 0", key="purchase_miles_bonus_offer")
+        bonus_miles = parse_user_input(bonus_miles_text)
         
     if st.button("Evaluate the Offer"):
         # Check if we have enough data to make a comparison
